@@ -1,0 +1,340 @@
+@import "tailwindcss";
+
+/* ─── Design Tokens: Luminescent Ledger ────────────────────────── */
+@theme {
+  /* Surfaces */
+  --color-background: #0B0E14;
+  --color-surface: #0B0E14;
+  --color-surface-dim: #0B0E14;
+  --color-surface-bright: #282C36;
+  --color-surface-container-lowest: #000000;
+  --color-surface-container-low: #10131A;
+  --color-surface-container: #161A21;
+  --color-surface-container-high: #1C2028;
+  --color-surface-container-highest: #22262F;
+  --color-surface-variant: #22262F;
+
+  /* Primary */
+  --color-primary: #BD9DFF;
+  --color-primary-dim: #8A4CFC;
+  --color-primary-container: #B28CFF;
+  --color-primary-on: #3C0089;
+  --color-primary-on-container: #2E006C;
+
+  /* Secondary */
+  --color-secondary: #DBE0EA;
+  --color-secondary-dim: #CDD2DB;
+  --color-secondary-container: #42474F;
+  --color-secondary-on: #4B5058;
+
+  /* Tertiary (Income/Growth) */
+  --color-tertiary: #9BFFCE;
+  --color-tertiary-dim: #58E7AB;
+  --color-tertiary-container: #69F6B8;
+  --color-tertiary-on: #006443;
+
+  /* Error (Expense/Warning) */
+  --color-error: #FF6E84;
+  --color-error-dim: #D73357;
+  --color-error-container: #A70138;
+  --color-error-on: #490013;
+  --color-error-on-container: #FFB2B9;
+
+  /* Text on surfaces */
+  --color-on-surface: #ECEDF6;
+  --color-on-surface-variant: #A9ABB3;
+
+  /* Lines/Borders */
+  --color-line: #73757D;
+  --color-line-subtle: #45484F;
+
+  /* Inverse */
+  --color-inverse-surface: #F9F9FF;
+  --color-inverse-on-surface: #52555C;
+  --color-inverse-primary: #742FE5;
+
+  /* Border radius */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+
+  /* Shadows */
+  --shadow-primary-glow: 0 0 30px rgba(189, 157, 255, 0.08);
+  --shadow-primary-glow-lg: 0 0 40px rgba(189, 157, 255, 0.15);
+  --shadow-card-hover: 0 0 20px rgba(189, 157, 255, 0.06);
+
+  /* Animations */
+  --animate-shimmer: shimmer 2s infinite linear;
+  --animate-fade-in: fade-in 0.4s ease-out forwards;
+  --animate-slide-up: slide-up 0.35s ease-out forwards;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  0% { opacity: 0; transform: translateY(16px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ─── Base ─────────────────────────────────────────────────────── */
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-background text-on-surface antialiased;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #45484F;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #73757D;
+  }
+}
+
+/* ─── Utility: Primary Gradient BG ─────────────────────────────── */
+@utility bg-primary-gradient {
+  background-image: linear-gradient(135deg, #BD9DFF, #8A4CFC);
+}
+
+/* ─── Component Classes ────────────────────────────────────────── */
+@layer components {
+
+  /* ── Buttons ─────────────────────────────────────────────────── */
+  .btn-primary {
+    @apply
+      bg-primary-gradient text-white
+      px-5 py-2.5 rounded-xl
+      font-semibold text-sm tracking-wide
+      shadow-primary-glow
+      transition-all duration-300 ease-out;
+  }
+  .btn-primary:hover {
+    @apply shadow-primary-glow-lg;
+    filter: brightness(1.1);
+    transform: scale(1.02);
+  }
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+  .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+    transform: none;
+    filter: none;
+  }
+
+  .btn-secondary {
+    @apply
+      bg-transparent
+      text-on-surface
+      px-5 py-2.5 rounded-xl
+      font-medium text-sm
+      border border-line-subtle/15
+      transition-all duration-200 ease-out;
+  }
+  .btn-secondary:hover {
+    @apply bg-surface-container-high border-line-subtle/30;
+  }
+  .btn-secondary:active {
+    transform: scale(0.98);
+  }
+
+  .btn-outline {
+    @apply
+      bg-transparent
+      text-primary
+      px-5 py-2.5 rounded-xl
+      font-medium text-sm
+      border border-line-subtle/15
+      transition-all duration-200 ease-out;
+  }
+  .btn-outline:hover {
+    @apply bg-primary/10 border-primary/25;
+  }
+  .btn-outline:active {
+    transform: scale(0.98);
+  }
+
+  /* ── Cards ───────────────────────────────────────────────────── */
+  .card {
+    @apply
+      bg-surface-container rounded-2xl p-6
+      transition-all duration-300 ease-out;
+  }
+
+  .card-interactive {
+    @apply
+      bg-surface-container rounded-2xl p-6
+      transition-all duration-300 ease-out
+      cursor-pointer;
+  }
+  .card-interactive:hover {
+    @apply bg-surface-container-high shadow-card-hover;
+  }
+
+  .card-elevated {
+    @apply
+      bg-surface-container-high rounded-2xl p-6;
+  }
+
+  /* ── Form Elements ───────────────────────────────────────────── */
+  .input {
+    @apply
+      w-full px-4 py-2.5
+      bg-surface-container-highest text-on-surface
+      rounded-xl
+      border-none
+      transition-all duration-200 ease-out;
+  }
+  .input::placeholder {
+    @apply text-on-surface-variant/50;
+  }
+  .input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(189, 157, 255, 0.3), 0 0 12px rgba(189, 157, 255, 0.12);
+  }
+
+  .label {
+    @apply
+      block text-xs font-semibold uppercase tracking-widest
+      text-on-surface-variant mb-2;
+  }
+
+  /* ── Badges ──────────────────────────────────────────────────── */
+  .badge {
+    @apply
+      inline-flex items-center
+      px-3 py-1 rounded-lg
+      text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .badge-income {
+    @apply inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wide bg-tertiary/12 text-tertiary;
+  }
+
+  .badge-expense {
+    @apply inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wide bg-error/12 text-error;
+  }
+
+  .badge-transfer {
+    @apply inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wide bg-primary/12 text-primary;
+  }
+
+  .badge-investment {
+    @apply inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wide bg-primary/12 text-primary;
+  }
+
+  /* ── Glass Overlay ───────────────────────────────────────────── */
+  .glass-overlay {
+    @apply
+      fixed inset-0
+      bg-black/60 backdrop-blur-sm
+      flex items-center justify-center
+      px-4 z-50;
+  }
+
+  .glass-modal {
+    @apply
+      bg-surface-container/95 backdrop-blur-xl
+      rounded-2xl
+      shadow-primary-glow
+      animate-slide-up;
+  }
+
+  /* ── Type Pill ───────────────────────────────────────────────── */
+  .type-pill {
+    @apply
+      px-4 py-2 rounded-xl
+      font-medium text-sm
+      transition-all duration-200 ease-out
+      cursor-pointer;
+  }
+
+  .type-pill-active {
+    @apply
+      px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 ease-out cursor-pointer
+      bg-primary-gradient text-white shadow-primary-glow;
+  }
+
+  .type-pill-inactive {
+    @apply
+      px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 ease-out cursor-pointer
+      bg-surface-container-high text-on-surface-variant;
+  }
+  .type-pill-inactive:hover {
+    @apply bg-surface-container-highest text-on-surface;
+  }
+
+  /* ── Category Pill ───────────────────────────────────────────── */
+  .category-pill {
+    @apply
+      px-3 py-1 rounded-full
+      text-sm font-medium
+      transition-all duration-200 ease-out
+      cursor-pointer;
+  }
+
+  .category-pill-active {
+    @apply
+      px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ease-out cursor-pointer
+      bg-primary text-primary-on;
+  }
+
+  .category-pill-inactive {
+    @apply
+      px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ease-out cursor-pointer
+      bg-surface-container-high text-on-surface-variant;
+  }
+  .category-pill-inactive:hover {
+    @apply bg-surface-container-highest text-on-surface;
+  }
+
+  /* ── Shimmer Loading ─────────────────────────────────────────── */
+  .shimmer {
+    @apply
+      rounded-xl animate-shimmer;
+    background: linear-gradient(90deg, #161A21 25%, #1C2028 50%, #161A21 75%);
+    background-size: 200% 100%;
+  }
+
+  /* ── Stat Card ───────────────────────────────────────────────── */
+  .stat-label {
+    @apply
+      text-xs font-semibold uppercase tracking-widest
+      text-on-surface-variant mb-2;
+  }
+
+  .stat-value {
+    @apply
+      text-3xl font-bold tracking-tight;
+  }
+
+  /* ── Sidebar Layout ──────────────────────────────────────── */
+  @screen md {
+    main {
+      @apply max-w-full;
+    }
+  }
+}

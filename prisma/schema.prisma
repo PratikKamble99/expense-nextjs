@@ -1,0 +1,207 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+  INVESTMENT
+}
+
+enum TransferType {
+  BANK
+  PERSON
+}
+
+enum InvestmentType {
+  STOCKS
+  CRYPTO
+  BONDS
+  REAL_ESTATE
+  MUTUAL_FUND
+  OTHER
+}
+
+enum EmailStatus {
+  SENT
+  FAILED
+}
+
+// Better-auth required tables
+model user {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts           account[]
+  sessions           session[]
+  verifications      verification[]
+  bankAccounts       BankAccount[]
+  transactions       Transaction[]
+  investments        Investment[]
+  preference         UserPreference?
+
+  @@map("user")
+}
+
+model session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token, userId])
+  @@index([userId])
+  @@map("session")
+}
+
+model account {
+  id                    String    @id @default(cuid())
+  accountId             String    // Provider's account ID (e.g., Google user ID)
+  providerId            String    // Provider name (e.g., "google")
+  refreshToken          String?
+  accessToken           String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  userId                String
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model verification {
+  id        String   @id @default(cuid())
+  identifier String
+  value     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String?
+  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([identifier, value])
+  @@index([userId])
+  @@map("verification")
+}
+
+// Custom tables
+model BankAccount {
+  id        String   @id @default(cuid())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  balance   Decimal  @default(0) @db.Decimal(12, 2)
+  currency  String   @default("USD")
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  fromTransactions Transaction[] @relation("fromAccount")
+  toTransactions   Transaction[] @relation("toAccount")
+  investments      Investment[]
+
+  @@index([userId])
+  @@map("bank_account")
+}
+
+model Transaction {
+  id             String          @id @default(cuid())
+  userId         String
+  user           user            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromAccountId  String
+  fromAccount    BankAccount     @relation("fromAccount", fields: [fromAccountId], references: [id], onDelete: Cascade)
+  toAccountId    String?
+  toAccount      BankAccount?    @relation("toAccount", fields: [toAccountId], references: [id], onDelete: Cascade)
+  type           TransactionType
+  transferType   TransferType?   // Only used when type = TRANSFER
+  amount         Decimal         @db.Decimal(12, 2)
+  description    String?
+  category       String?
+  recipientName  String?         // For TRANSFER_PERSON
+  investmentId   String?
+  investment     Investment?     @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now())
+
+  @@index([userId])
+  @@index([fromAccountId])
+  @@index([toAccountId])
+  @@index([investmentId])
+  @@map("transaction")
+}
+
+model Investment {
+  id             String         @id @default(cuid())
+  userId         String
+  user           user           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccountId  String
+  bankAccount    BankAccount    @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  name           String
+  type           InvestmentType
+  totalInvested  Decimal        @db.Decimal(12, 2)
+  currentValue   Decimal        @default(0) @db.Decimal(12, 2)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relations
+  transactions   Transaction[]
+
+  @@index([userId])
+  @@index([bankAccountId])
+  @@map("investment")
+}
+
+model UserPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency          String   @default("USD")
+  theme             String   @default("Dark")
+  dateFormat        String   @default("MM/DD/YYYY")
+  txAlerts          Boolean  @default(true)
+  monthlySummary    Boolean  @default(true)
+  lowBalanceWarning Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("user_preference")
+}
+
+model EmailLog {
+  id        String      @id @default(cuid())
+  to        String
+  type      String      // "verification", "login_alert", "password_reset"
+  subject   String
+  status    EmailStatus
+  error     String?
+  sentAt    DateTime    @default(now())
+
+  @@index([to])
+  @@map("email_log")
+}
