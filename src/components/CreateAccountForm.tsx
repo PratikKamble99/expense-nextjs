@@ -138,7 +138,7 @@ export function CreateAccountForm({ onClose, onSuccess }: CreateAccountFormProps
                 value={formData.lastFourDigits}
                 onChange={handleChange}
                 placeholder="1234"
-                maxLength="4"
+                maxLength={4}
                 className="input"
               />
             </div>

@@ -54,7 +54,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     ])
       .then(([userCurrency, fetchedRates]) => {
         setCurrencyState(userCurrency);
-        setRates({ USD: 1, ...fetchedRates });
+        setRates(fetchedRates);
       })
       .finally(() => setLoading(false));
   }, []);

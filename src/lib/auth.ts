@@ -12,7 +12,10 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
-    async sendVerificationEmail({ email, url }) {
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    async sendVerificationEmail({ user, url }: { user: any; url: string }) {
       if (!url) {
         console.error("Verification URL is undefined");
         throw new Error("Verification URL is undefined");
@@ -20,7 +23,7 @@ export const auth = betterAuth({
       const token = url.split("token=")[1];
       if (!token) throw new Error("No token provided");
 
-      await sendVerificationEmail(email, token);
+      await sendVerificationEmail(user.email, token);
     },
   },
   socialProviders: {
@@ -29,39 +32,51 @@ export const auth = betterAuth({
       clientSecret: process.env.AUTH_GOOGLE_SECRET || "",
     },
   },
-  hooks: {
-    async signUp({ user }) {
-      if (!user.id) return;
+  databaseHooks: {
+    user: {
+      create: {
+        async after(user: any) {
+          if (!user.id) return;
 
-      // Create default BankAccount for new users
-      const existingAccount = await prisma.bankAccount.findFirst({
-        where: { userId: user.id },
-      });
+          // Create default BankAccount for new users
+          const existingAccount = await prisma.bankAccount.findFirst({
+            where: { userId: user.id },
+          });
 
-      if (!existingAccount) {
-        await prisma.bankAccount.create({
-          data: {
-            userId: user.id,
-            name: "Default Account",
-            isDefault: true,
-            balance: 0,
-            currency: "USD",
-          },
-        });
-      }
+          if (!existingAccount) {
+            await prisma.bankAccount.create({
+              data: {
+                userId: user.id,
+                name: "Default Account",
+                isDefault: true,
+                balance: 0,
+                currency: "USD",
+              },
+            });
+          }
+        },
+      },
     },
-    async signIn({ user }) {
-      if (!user.email) return;
+    session: {
+      create: {
+        async after(session: any) {
+          const user = await prisma.user.findUnique({
+            where: { id: session.userId },
+          });
 
-      // Determine provider (if signIn via social provider)
-      const account = await prisma.account.findFirst({
-        where: { userId: user.id },
-      });
+          if (!user || !user.email) return;
 
-      const provider = account?.providerId || "Email";
+          // Determine provider (if signIn via social provider)
+          const account = await prisma.account.findFirst({
+            where: { userId: user.id },
+          });
 
-      // Send login alert email
-      await sendLoginAlertEmail(user.email, user.name || "User", provider);
+          const provider = account?.providerId || "Email";
+
+          // Send login alert email
+          await sendLoginAlertEmail(user.email, user.name || "User", provider);
+        },
+      },
     },
   },
 });

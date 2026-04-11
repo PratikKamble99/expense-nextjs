@@ -16,7 +16,7 @@ export function CreateTransactionForm({ onSuccess, onClose, selectedType = "EXPE
     description: transactionToEdit?.description || "",
     amount: transactionToEdit?.amount.toString() || "",
     category: transactionToEdit?.category || "",
-    accountId: transactionToEdit?.accountId || "",
+    accountId: transactionToEdit?.fromAccountId || "",
     date: transactionToEdit ? new Date(transactionToEdit.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
   });
   const [loading, setLoading] = useState(false);

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Find verification token
-    const verification = await prisma.verification.findUnique({
+    const verification = await prisma.verification.findFirst({
       where: { value: token },
     });
 
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Delete verification token
-    await prisma.verification.delete({
+    await prisma.verification.deleteMany({
       where: { value: token },
     });
 
