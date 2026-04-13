@@ -95,6 +95,10 @@
     @apply bg-background text-on-surface antialiased;
   }
 
+  button {
+    @apply cursor-pointer;
+  }
+
   /* Scrollbar styling */
   ::-webkit-scrollbar {
     width: 6px;

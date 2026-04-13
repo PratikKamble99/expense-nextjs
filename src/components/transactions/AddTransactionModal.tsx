@@ -5,7 +5,7 @@ import { createTransaction, updateTransaction } from "@/actions/transactions";
 import { createAccount as createAccountAction } from "@/actions/accounts";
 import type { TransactionData } from "@/actions/transactions";
 import type { AccountData } from "@/actions/accounts";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import { useCurrency, SYMBOLS } from "@/contexts/CurrencyContext";
 
 interface AddTransactionModalProps {
     accounts: AccountData[];
@@ -76,7 +76,7 @@ export function AddTransactionModal({
     isRepeat,
 }: AddTransactionModalProps) {
     const isEditing = transactionToEdit && !isRepeat;
-    const { currency, symbol, rate, formatCurrency } = useCurrency();
+    const { currency, convertToDisplay } = useCurrency();
     const [accounts, setAccounts] = useState(initialAccounts);
     const [type, setType] = useState<TransactionType | null>(
         (transactionToEdit?.type as TransactionType) || null,
@@ -90,8 +90,8 @@ export function AddTransactionModal({
     );
     const [amount, setAmount] = useState(() => {
         if (!transactionToEdit) return "";
-        const converted = Number(transactionToEdit.amount) * rate;
-        return String(currency === "JPY" ? Math.round(converted) : Math.round(converted * 100) / 100);
+        // Amount is stored in the account's own currency — display as-is
+        return String(transactionToEdit.amount);
     });
     const [description, setDescription] = useState(
         transactionToEdit?.description || "",
@@ -148,7 +148,7 @@ export function AddTransactionModal({
             const payload = {
                 fromAccountId,
                 type,
-                amount: parseFloat(amount) / rate,
+                amount: parseFloat(amount), // stored in the account's own currency
                 description: description || undefined,
                 ...(type === "TRANSFER" && {
                     transferType,
@@ -429,7 +429,7 @@ export function AddTransactionModal({
                                     >
                                         {accounts.map((acc) => (
                                             <option key={acc.id} value={acc.id}>
-                                                {acc.name} ({formatCurrency(Number(acc.balance))})
+                                                {acc.name} ({convertToDisplay(Number(acc.balance), acc.currency)})
                                             </option>
                                         ))}
                                     </select>
@@ -514,7 +514,9 @@ export function AddTransactionModal({
                             <div>
                                 <label className="label">Amount</label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-medium">{symbol}</span>
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-medium">
+                                        {SYMBOLS[accounts.find(a => a.id === fromAccountId)?.currency ?? ""] ?? accounts.find(a => a.id === fromAccountId)?.currency ?? "$"}
+                                    </span>
                                     <input
                                         type="number"
                                         step="0.01"

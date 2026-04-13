@@ -9,7 +9,7 @@ import {
 } from "react";
 import { getPreferences, updatePreferences } from "@/actions/settings";
 
-const SYMBOLS: Record<string, string> = {
+export const SYMBOLS: Record<string, string> = {
   USD: "$",
   EUR: "€",
   GBP: "£",
@@ -23,8 +23,12 @@ interface CurrencyContextValue {
   currency: string;
   symbol: string;
   rate: number;
+  rates: Record<string, number>;
   loading: boolean;
+  /** Format a number already in the user's display currency (no conversion). */
   formatCurrency: (amount: number) => string;
+  /** Convert from any source currency to the user's display currency and format. */
+  convertToDisplay: (amount: number, fromCurrency: string) => string;
   setCurrency: (code: string) => Promise<void>;
 }
 
@@ -32,8 +36,10 @@ const CurrencyContext = createContext<CurrencyContextValue>({
   currency: "USD",
   symbol: "$",
   rate: 1,
+  rates: { USD: 1 },
   loading: true,
   formatCurrency: (n) => `$${n.toFixed(2)}`,
+  convertToDisplay: (n) => `$${n.toFixed(2)}`,
   setCurrency: async () => {},
 });
 
@@ -62,16 +68,30 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const rate = rates[currency] ?? 1;
   const symbol = SYMBOLS[currency] ?? currency;
 
+  /** Format a value already in the user's display currency — no conversion. */
   const formatCurrency = useCallback(
     (amount: number) => {
-      const converted = amount * rate;
+      const decimals = currency === "JPY" ? 0 : 2;
+      return `${symbol}${amount.toLocaleString("en-US", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}`;
+    },
+    [currency, symbol]
+  );
+
+  /** Convert from `fromCurrency` to the user's display currency and format. */
+  const convertToDisplay = useCallback(
+    (amount: number, fromCurrency: string) => {
+      const fromRate = rates[fromCurrency] ?? 1;
+      const converted = amount * (rate / fromRate);
       const decimals = currency === "JPY" ? 0 : 2;
       return `${symbol}${converted.toLocaleString("en-US", {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
       })}`;
     },
-    [currency, rate, symbol]
+    [rates, rate, currency, symbol]
   );
 
   const setCurrency = useCallback(
@@ -89,7 +109,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CurrencyContext.Provider
-      value={{ currency, symbol, rate, loading, formatCurrency, setCurrency }}
+      value={{ currency, symbol, rate, rates, loading, formatCurrency, convertToDisplay, setCurrency }}
     >
       {children}
     </CurrencyContext.Provider>

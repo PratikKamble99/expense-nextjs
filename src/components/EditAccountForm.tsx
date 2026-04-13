@@ -1,35 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { createAccount } from "@/actions/accounts";
+import { updateAccount } from "@/actions/accounts";
+import type { AccountData } from "@/actions/accounts";
 import { SYMBOLS } from "@/contexts/CurrencyContext";
 
-const CURRENCIES = Object.keys(SYMBOLS);
-
-interface CreateAccountFormProps {
+interface EditAccountFormProps {
+  account: AccountData;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function CreateAccountForm({ onClose, onSuccess }: CreateAccountFormProps) {
+export function EditAccountForm({ account, onClose, onSuccess }: EditAccountFormProps) {
+  // Balance is stored and edited in the account's own currency
+  const symbol = SYMBOLS[account.currency] ?? account.currency;
   const [formData, setFormData] = useState({
-    name: "",
-    type: "",
-    currency: "USD",
-    openingBalance: "",
-    bank: "",
-    lastFourDigits: "",
-    description: "",
+    name: account.name,
+    type: account.type ?? "",
+    balance: String(account.balance),
+    bank: account.bank ?? "",
+    lastFourDigits: account.lastFourDigits ?? "",
+    description: account.description ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,19 +38,15 @@ export function CreateAccountForm({ onClose, onSuccess }: CreateAccountFormProps
     setLoading(true);
 
     try {
-      await createAccount({
+      await updateAccount(account.id, {
         name: formData.name,
-        currency: formData.currency,
-        isDefault: false,
-        balance: formData.openingBalance ? parseFloat(formData.openingBalance) : 0,
+        balance: formData.balance ? parseFloat(formData.balance) : 0,
         type: formData.type || null,
         bank: formData.bank || null,
         lastFourDigits: formData.lastFourDigits || null,
         description: formData.description || null,
       });
-
       onSuccess();
-      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -62,8 +58,8 @@ export function CreateAccountForm({ onClose, onSuccess }: CreateAccountFormProps
     <div className="glass-overlay" onClick={onClose}>
       <div className="glass-modal w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
         <div className="px-8 py-6 border-b border-line-subtle/10">
-          <h2 className="text-xl font-bold text-on-surface">Create New Account</h2>
-          <p className="text-sm text-on-surface-variant mt-1">Add a new bank account to your wallet</p>
+          <h2 className="text-xl font-bold text-on-surface">Edit Account</h2>
+          <p className="text-sm text-on-surface-variant mt-1">Update your bank account details</p>
         </div>
 
         <form onSubmit={handleSubmit} className="px-8 py-6 space-y-5">
@@ -84,10 +80,11 @@ export function CreateAccountForm({ onClose, onSuccess }: CreateAccountFormProps
               placeholder="e.g. Primary Checking"
               className="input"
               required
+              autoFocus
             />
           </div>
 
-          {/* Type and Currency */}
+          {/* Type and Balance */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Type</label>
@@ -96,7 +93,6 @@ export function CreateAccountForm({ onClose, onSuccess }: CreateAccountFormProps
                 value={formData.type}
                 onChange={handleChange}
                 className="input"
-                required
               >
                 <option value="">Select Type</option>
                 <option value="CHECKING">Checking</option>
@@ -107,36 +103,21 @@ export function CreateAccountForm({ onClose, onSuccess }: CreateAccountFormProps
               </select>
             </div>
             <div>
-              <label className="label">Currency</label>
-              <select
-                name="currency"
-                value={formData.currency}
-                onChange={handleChange}
-                className="input"
-              >
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>{c} ({SYMBOLS[c]})</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Opening Balance */}
-          <div>
-            <label className="label">Opening Balance</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-medium">
-                {SYMBOLS[formData.currency] ?? formData.currency}
-              </span>
-              <input
-                type="number"
-                name="openingBalance"
-                value={formData.openingBalance}
-                onChange={handleChange}
-                placeholder="0.00"
-                step="0.01"
-                className="input pl-8"
-              />
+              <label className="label">Balance</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-medium">
+                  {symbol}
+                </span>
+                <input
+                  type="number"
+                  name="balance"
+                  value={formData.balance}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                  step="0.01"
+                  className="input pl-8"
+                />
+              </div>
             </div>
           </div>
 
@@ -195,7 +176,7 @@ export function CreateAccountForm({ onClose, onSuccess }: CreateAccountFormProps
               className="btn-primary flex-1"
               disabled={loading}
             >
-              {loading ? "Creating..." : "Create Account"}
+              {loading ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </form>

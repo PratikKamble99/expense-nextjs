@@ -10,7 +10,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 
 export default function DashboardPage() {
     const { data: session } = useSession();
-    const { formatCurrency } = useCurrency();
+    const { formatCurrency, convertToDisplay, rates, currency } = useCurrency();
     const [summary, setSummary] = useState<DashboardSummary | null>(null);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -143,23 +143,41 @@ export default function DashboardPage() {
         }
     };
 
+    // Convert any amount from its source currency to the user's display currency (numeric)
+    const toUserCurrency = (amount: number, fromCurrency: string) => {
+        const fromRate = rates[fromCurrency] ?? 1;
+        const toRate = rates[currency] ?? 1;
+        return amount * (toRate / fromRate);
+    };
+
+    const totalBalance = summary.bankAccounts.reduce(
+        (sum, a) => sum + toUserCurrency(a.balance, a.currency),
+        0
+    );
+    const monthlyIncome = summary.monthlyTransactions
+        .filter((t) => t.type === "INCOME")
+        .reduce((sum, t) => sum + toUserCurrency(t.amount, t.fromAccountCurrency), 0);
+    const monthlyExpense = summary.monthlyTransactions
+        .filter((t) => t.type === "EXPENSE" || (t.type === "TRANSFER" && t.transferType === "PERSON"))
+        .reduce((sum, t) => sum + toUserCurrency(t.amount, t.fromAccountCurrency), 0);
+
     const stats = [
         {
             label: "Total Balance",
-            value: summary.totalBalance,
+            value: totalBalance,
             color: "text-on-surface",
             iconColor: "text-primary bg-primary/10",
         },
         {
             label: "Monthly Income",
-            value: summary.monthlyIncome,
+            value: monthlyIncome,
             color: "text-tertiary",
             prefix: "+",
             iconColor: "text-tertiary bg-tertiary/10",
         },
         {
             label: "Monthly Expense",
-            value: summary.monthlyExpense,
+            value: monthlyExpense,
             color: "text-error",
             prefix: "-",
             iconColor: "text-error bg-error/10",
@@ -256,7 +274,7 @@ export default function DashboardPage() {
                                     {account.currency}
                                 </p>
                                 <p className="text-2xl font-bold text-on-surface tracking-tight">
-                                    {formatCurrency(Number(account.balance))}
+                                    {convertToDisplay(Number(account.balance), account.currency)}
                                 </p>
                             </div>
                         ))}
@@ -319,7 +337,7 @@ export default function DashboardPage() {
                                         <p
                                             className={`text-base font-semibold tabular-nums ${getTransactionColor(transaction.type)}`}
                                         >
-                                            {getAmountSign(transaction.type)}{formatCurrency(Number(transaction.amount))}
+                                            {getAmountSign(transaction.type)}{convertToDisplay(Number(transaction.amount), transaction.fromAccountCurrency)}
                                         </p>
                                     </div>
                                 ))}

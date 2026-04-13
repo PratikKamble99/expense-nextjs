@@ -13,6 +13,8 @@ export interface TransactionData {
   type: TransactionType;
   transferType: TransferType | null;
   amount: number;
+  /** Currency the amount is stored in — same as the fromAccount's currency. */
+  fromAccountCurrency: string;
   description: string | null;
   category: string | null;
   recipientName: string | null;
@@ -22,10 +24,7 @@ export interface TransactionData {
 }
 
 export interface DashboardSummary {
-  totalBalance: number;
   totalInvested: number;
-  monthlyExpense: number;
-  monthlyIncome: number;
   bankAccounts: {
     id: string;
     name: string;
@@ -35,6 +34,8 @@ export interface DashboardSummary {
     createdAt: string;
   }[];
   recentTransactions: TransactionData[];
+  /** All transactions in the current month — used for client-side income/expense sums. */
+  monthlyTransactions: TransactionData[];
 }
 
 export interface TransactionInput {
@@ -52,7 +53,7 @@ export interface TransactionInput {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function serializeTx(t: {
+type TxWithAccount = {
   id: string;
   type: TransactionType;
   transferType: TransferType | null;
@@ -63,12 +64,16 @@ function serializeTx(t: {
   fromAccountId: string;
   toAccountId: string | null;
   createdAt: Date;
-}): TransactionData {
+  fromAccount: { currency: string };
+};
+
+function serializeTx(t: TxWithAccount): TransactionData {
   return {
     id: t.id,
     type: t.type,
     transferType: t.transferType,
     amount: t.amount.toNumber(),
+    fromAccountCurrency: t.fromAccount.currency,
     description: t.description,
     category: t.category,
     recipientName: t.recipientName,
@@ -77,6 +82,8 @@ function serializeTx(t: {
     createdAt: t.createdAt.toISOString(),
   };
 }
+
+const TX_INCLUDE = { fromAccount: { select: { currency: true } } } as const;
 
 async function getSession() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -96,26 +103,22 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const [bankAccounts, investments, recentTxs, monthlyTxs] = await Promise.all([
     prisma.bankAccount.findMany({ where: { userId }, orderBy: { isDefault: "desc" } }),
     prisma.investment.findMany({ where: { userId } }),
-    prisma.transaction.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 10 }),
-    prisma.transaction.findMany({ where: { userId, createdAt: { gte: monthStart } } }),
+    prisma.transaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: TX_INCLUDE,
+    }),
+    prisma.transaction.findMany({
+      where: { userId, createdAt: { gte: monthStart } },
+      include: TX_INCLUDE,
+    }),
   ]);
 
-  const totalBalance = bankAccounts.reduce((s, a) => s + a.balance.toNumber(), 0);
   const totalInvested = investments.reduce((s, i) => s + i.totalInvested.toNumber(), 0);
 
-  const monthlyExpense = monthlyTxs
-    .filter((t) => t.type === "EXPENSE" || (t.type === "TRANSFER" && t.transferType === "PERSON"))
-    .reduce((s, t) => s + t.amount.toNumber(), 0);
-
-  const monthlyIncome = monthlyTxs
-    .filter((t) => t.type === "INCOME")
-    .reduce((s, t) => s + t.amount.toNumber(), 0);
-
   return {
-    totalBalance,
     totalInvested,
-    monthlyExpense,
-    monthlyIncome,
     bankAccounts: bankAccounts.map((a) => ({
       id: a.id,
       name: a.name,
@@ -125,6 +128,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       createdAt: a.createdAt.toISOString(),
     })),
     recentTransactions: recentTxs.map(serializeTx),
+    monthlyTransactions: monthlyTxs.map(serializeTx),
   };
 }
 
@@ -136,7 +140,11 @@ export async function getTransactionsWithAccounts(): Promise<{
   const userId = session.user.id;
 
   const [txs, accounts] = await Promise.all([
-    prisma.transaction.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
+    prisma.transaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      include: TX_INCLUDE,
+    }),
     prisma.bankAccount.findMany({ where: { userId }, orderBy: { isDefault: "desc" } }),
   ]);
 
@@ -157,11 +165,14 @@ export async function getTransactionsWithAccounts(): Promise<{
 
 export async function createTransaction(input: TransactionInput): Promise<TransactionData> {
   const session = await getSession();
-  const userId = session.user.id;
-
   const { createTransaction: create } = await import("@/lib/transactions");
-  const tx = await create({ userId, ...input });
-  return serializeTx(tx);
+  const tx = await create({ userId: session.user.id, ...input });
+  // Fetch account currency for serialization
+  const fromAccount = await prisma.bankAccount.findUniqueOrThrow({
+    where: { id: input.fromAccountId },
+    select: { currency: true },
+  });
+  return serializeTx({ ...tx, fromAccount });
 }
 
 export async function updateTransaction(
@@ -171,7 +182,6 @@ export async function updateTransaction(
   const session = await getSession();
 
   const updated = await prisma.$transaction(async (tx) => {
-    // Fetch original — scoped to this user
     const original = await tx.transaction.findUniqueOrThrow({
       where: { id, userId: session.user.id },
     });
@@ -243,7 +253,6 @@ export async function updateTransaction(
       });
     }
 
-    // ── Update the transaction record ─────────────────────────
     return tx.transaction.update({
       where: { id },
       data: {
@@ -256,6 +265,7 @@ export async function updateTransaction(
         category: input.category ?? null,
         recipientName: input.recipientName ?? null,
       },
+      include: TX_INCLUDE,
     });
   });
 

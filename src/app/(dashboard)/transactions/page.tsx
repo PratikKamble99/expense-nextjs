@@ -17,7 +17,7 @@ interface TransactionsData {
 
 export default function TransactionsPage() {
     const { data: session } = useSession();
-    const { formatCurrency } = useCurrency();
+    const { convertToDisplay } = useCurrency();
     const [data, setData] = useState<TransactionsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [filterType, setFilterType] = useState<string>("ALL");
@@ -305,7 +305,7 @@ export default function TransactionsPage() {
                                     </div>
                                     <div className="flex flex-col items-end gap-2">
                                         <p className={`text-base font-semibold tabular-nums ${getTransactionColor(transaction.type)}`}>
-                                            {getAmountSign(transaction.type)}{formatCurrency(Number(transaction.amount))}
+                                            {getAmountSign(transaction.type)}{convertToDisplay(Number(transaction.amount), transaction.fromAccountCurrency)}
                                         </p>
                                         {transaction.recipientName && (
                                             <p className="text-xs text-on-surface-variant/60">

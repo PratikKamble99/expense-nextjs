@@ -37,6 +37,14 @@ enum EmailStatus {
   FAILED
 }
 
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  INVESTMENT
+  OTHER
+}
+
 // Better-auth required tables
 model user {
   id            String    @id @default(cuid())
@@ -113,14 +121,18 @@ model verification {
 
 // Custom tables
 model BankAccount {
-  id        String   @id @default(cuid())
-  userId    String
-  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  balance   Decimal  @default(0) @db.Decimal(12, 2)
-  currency  String   @default("USD")
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id             String       @id @default(cuid())
+  userId         String
+  user           user         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  type           AccountType?
+  balance        Decimal      @default(0) @db.Decimal(12, 2)
+  currency       String       @default("USD")
+  isDefault      Boolean      @default(false)
+  bank           String?
+  lastFourDigits String?
+  description    String?
+  createdAt      DateTime     @default(now())
 
   // Relations
   fromTransactions Transaction[] @relation("fromAccount")

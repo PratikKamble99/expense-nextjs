@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { MobileMenuButton } from "@/components/MobileMenuButton";
 import { CreateAccountForm } from "@/components/CreateAccountForm";
+import { EditAccountForm } from "@/components/EditAccountForm";
 import { getAccounts } from "@/actions/accounts";
 import type { AccountData } from "@/actions/accounts";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -15,10 +16,11 @@ interface AccountsData {
 
 export default function AccountsPage() {
     const { data: session } = useSession();
-    const { formatCurrency } = useCurrency();
+    const { convertToDisplay, rates, currency } = useCurrency();
     const [data, setData] = useState<AccountsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [accountToEdit, setAccountToEdit] = useState<AccountData | null>(null);
 
     useEffect(() => {
         if (session) {
@@ -96,7 +98,14 @@ export default function AccountsPage() {
                     <div className="card">
                         <p className="stat-label mb-2">Total Balance</p>
                         <p className="text-4xl font-bold text-on-surface tracking-tight">
-                            {formatCurrency(data.totalBalance ?? 0)}
+                            {convertToDisplay(
+                                (data.bankAccounts ?? []).reduce((sum, a) => {
+                                    const fromRate = rates[a.currency] ?? 1;
+                                    const toRate = rates[currency] ?? 1;
+                                    return sum + a.balance * (toRate / fromRate);
+                                }, 0),
+                                currency
+                            )}
                         </p>
                     </div>
                 </div>
@@ -124,12 +133,24 @@ export default function AccountsPage() {
                             {data.bankAccounts?.map((account, index) => (
                                 <div
                                     key={account.id}
-                                    className="card-interactive group"
+                                    className="card group relative"
                                     style={{
                                         animationDelay: `${index * 80}ms`,
                                     }}
                                 >
-                                    <div className="flex justify-between items-start mb-4">
+                                    {/* Edit button */}
+                                    <button
+                                        onClick={() => setAccountToEdit(account)}
+                                        className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                        aria-label="Edit account"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                        </svg>
+                                    </button>
+
+                                    <div className="flex justify-between items-start mb-4 pr-10">
                                         <div>
                                             <h3 className="font-semibold text-on-surface text-lg">
                                                 {account.name}
@@ -145,7 +166,7 @@ export default function AccountsPage() {
                                         )}
                                     </div>
                                     <p className="text-3xl font-bold text-on-surface tracking-tight">
-                                        {formatCurrency(Number(account.balance))}
+                                        {convertToDisplay(Number(account.balance), account.currency)}
                                     </p>
                                     <p className="text-xs text-on-surface-variant mt-4 uppercase tracking-wider">
                                         Account ID: {account.id.slice(0, 8)}
@@ -191,6 +212,17 @@ export default function AccountsPage() {
                     onClose={() => setShowCreateForm(false)}
                     onSuccess={() => {
                         setShowCreateForm(false);
+                        fetchAccounts();
+                    }}
+                />
+            )}
+
+            {accountToEdit && (
+                <EditAccountForm
+                    account={accountToEdit}
+                    onClose={() => setAccountToEdit(null)}
+                    onSuccess={() => {
+                        setAccountToEdit(null);
                         fetchAccounts();
                     }}
                 />
