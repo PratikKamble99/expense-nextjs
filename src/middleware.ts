@@ -8,7 +8,10 @@ export function middleware(req: NextRequest) {
   const isProtected = PROTECTED_PATHS.some((p) => pathname.startsWith(p));
 
   if (isProtected) {
-    const sessionToken = req.cookies.get("better-auth.session_token")?.value;
+    // better-auth uses "__Secure-" prefix on HTTPS (production), plain name on HTTP (dev)
+    const sessionToken =
+      req.cookies.get("better-auth.session_token")?.value ??
+      req.cookies.get("__Secure-better-auth.session_token")?.value;
     if (!sessionToken) {
       return NextResponse.redirect(new URL("/auth/login", req.url));
     }
