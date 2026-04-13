@@ -54,7 +54,10 @@ function LoginContent() {
     setLoading(true);
 
     await signIn.social(
-      { provider: "google", callbackURL: "/dashboard" },
+      {
+        provider: "google",
+        callbackURL: `${window.location.origin}/dashboard`,
+      },
       {
         onError: (ctx) => {
           setError(ctx.error.message || "Google login failed");
