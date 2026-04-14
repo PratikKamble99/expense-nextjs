@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import type { BankAccount } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -19,18 +20,7 @@ export interface AccountData {
   createdAt: string;
 }
 
-function serialize(a: {
-  id: string;
-  name: string;
-  type: string | null;
-  balance: { toNumber: () => number };
-  currency: string;
-  isDefault: boolean;
-  bank: string | null;
-  lastFourDigits: string | null;
-  description: string | null;
-  createdAt: Date;
-}): AccountData {
+function serialize(a: BankAccount): AccountData {
   return {
     id: a.id,
     name: a.name,
