@@ -43,6 +43,8 @@ export interface TransactionInput {
   recipientName?: string;
   investmentName?: string;
   investmentType?: string;
+  /** ISO date string (YYYY-MM-DD). Defaults to now when omitted. */
+  date?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -168,8 +170,11 @@ export async function getTransactionsWithAccounts(): Promise<{
 export async function createTransaction(input: TransactionInput): Promise<TransactionData> {
   const session = await getSession();
   const { createTransaction: create } = await import("@/lib/transactions");
-  const tx = await create({ userId: session.user.id, ...input });
-  // Fetch account currency for serialization
+  const tx = await create({
+    userId: session.user.id,
+    ...input,
+    date: input.date ? new Date(input.date) : undefined,
+  });
   const fromAccount = await prisma.bankAccount.findUniqueOrThrow({
     where: { id: input.fromAccountId },
     select: { currency: true },
@@ -266,10 +271,53 @@ export async function updateTransaction(
         description: input.description ?? null,
         category: input.category ?? null,
         recipientName: input.recipientName ?? null,
+        ...(input.date && { createdAt: new Date(input.date) }),
       },
       include: TX_INCLUDE,
     });
   });
 
   return serializeTx(updated);
+}
+
+export async function deleteTransaction(id: string): Promise<void> {
+  const session = await getSession();
+
+  await prisma.$transaction(async (tx) => {
+    const transaction = await tx.transaction.findUniqueOrThrow({
+      where: { id, userId: session.user.id },
+    });
+
+    const amt = transaction.amount;
+
+    // Reverse the balance effect of the original transaction
+    if (transaction.type === "INCOME") {
+      await tx.bankAccount.update({
+        where: { id: transaction.fromAccountId },
+        data: { balance: { decrement: amt } },
+      });
+    } else if (
+      transaction.type === "EXPENSE" ||
+      (transaction.type === "TRANSFER" && transaction.transferType === "PERSON") ||
+      transaction.type === "INVESTMENT"
+    ) {
+      await tx.bankAccount.update({
+        where: { id: transaction.fromAccountId },
+        data: { balance: { increment: amt } },
+      });
+    } else if (transaction.type === "TRANSFER" && transaction.transferType === "BANK") {
+      await tx.bankAccount.update({
+        where: { id: transaction.fromAccountId },
+        data: { balance: { increment: amt } },
+      });
+      if (transaction.toAccountId) {
+        await tx.bankAccount.update({
+          where: { id: transaction.toAccountId },
+          data: { balance: { decrement: amt } },
+        });
+      }
+    }
+
+    await tx.transaction.delete({ where: { id } });
+  });
 }

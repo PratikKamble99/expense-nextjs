@@ -15,10 +15,11 @@ interface CreateTransactionInput {
   investmentId?: string;
   investmentName?: string;
   investmentType?: string;
+  date?: Date;
 }
 
 async function createIncome(input: CreateTransactionInput) {
-  const { userId, fromAccountId, amount, description, category } = input;
+  const { userId, fromAccountId, amount, description, category, date } = input;
 
   return prisma.$transaction(async (tx) => {
     // Update account balance
@@ -36,6 +37,7 @@ async function createIncome(input: CreateTransactionInput) {
         amount: new Decimal(amount),
         description,
         category,
+        ...(date && { createdAt: date }),
       },
     });
 
@@ -44,7 +46,7 @@ async function createIncome(input: CreateTransactionInput) {
 }
 
 async function createExpense(input: CreateTransactionInput) {
-  const { userId, fromAccountId, amount, description, category } = input;
+  const { userId, fromAccountId, amount, description, category, date } = input;
 
   return prisma.$transaction(async (tx) => {
     // Check sufficient balance
@@ -71,6 +73,7 @@ async function createExpense(input: CreateTransactionInput) {
         amount: new Decimal(amount),
         description,
         category,
+        ...(date && { createdAt: date }),
       },
     });
 
@@ -79,7 +82,7 @@ async function createExpense(input: CreateTransactionInput) {
 }
 
 async function createBankTransfer(input: CreateTransactionInput) {
-  const { userId, fromAccountId, toAccountId, amount, description } = input;
+  const { userId, fromAccountId, toAccountId, amount, description, date } = input;
 
   if (!toAccountId) {
     throw new Error("toAccountId is required for bank transfer");
@@ -117,6 +120,7 @@ async function createBankTransfer(input: CreateTransactionInput) {
         transferType: "BANK",
         amount: new Decimal(amount),
         description,
+        ...(date && { createdAt: date }),
       },
     });
 
@@ -125,7 +129,7 @@ async function createBankTransfer(input: CreateTransactionInput) {
 }
 
 async function createPersonTransfer(input: CreateTransactionInput) {
-  const { userId, fromAccountId, amount, description, category, recipientName } =
+  const { userId, fromAccountId, amount, description, category, recipientName, date } =
     input;
 
   return prisma.$transaction(async (tx) => {
@@ -155,6 +159,7 @@ async function createPersonTransfer(input: CreateTransactionInput) {
         description,
         category,
         recipientName,
+        ...(date && { createdAt: date }),
       },
     });
 
@@ -170,6 +175,7 @@ async function createInvestment(input: CreateTransactionInput) {
     description,
     investmentName,
     investmentType,
+    date,
   } = input;
 
   if (!investmentName || !investmentType) {
@@ -232,6 +238,7 @@ async function createInvestment(input: CreateTransactionInput) {
         amount: new Decimal(amount),
         description,
         investmentId: investment.id,
+        ...(date && { createdAt: date }),
       },
     });
 

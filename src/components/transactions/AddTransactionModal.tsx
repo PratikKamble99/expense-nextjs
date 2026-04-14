@@ -102,6 +102,12 @@ export function AddTransactionModal({
     );
     const [investmentName, setInvestmentName] = useState("");
     const [investmentType, setInvestmentType] = useState("STOCKS");
+    const [date, setDate] = useState<string>(() => {
+        if (transactionToEdit && !isRepeat) {
+            return transactionToEdit.createdAt.slice(0, 10);
+        }
+        return new Date().toISOString().slice(0, 10);
+    });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -148,8 +154,9 @@ export function AddTransactionModal({
             const payload = {
                 fromAccountId,
                 type,
-                amount: parseFloat(amount), // stored in the account's own currency
+                amount: parseFloat(amount),
                 description: description || undefined,
+                date,
                 ...(type === "TRANSFER" && {
                     transferType,
                     ...(transferType === "BANK"
@@ -541,6 +548,19 @@ export function AddTransactionModal({
                                     }
                                     placeholder="What's this for?"
                                     className="input"
+                                />
+                            </div>
+
+                            {/* Date */}
+                            <div>
+                                <label className="label">Date</label>
+                                <input
+                                    type="date"
+                                    value={date}
+                                    onChange={(e) => setDate(e.target.value)}
+                                    max={new Date().toISOString().slice(0, 10)}
+                                    className="input"
+                                    required
                                 />
                             </div>
 
