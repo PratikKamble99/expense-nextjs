@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+type AccountTypeKey = "CHECKING" | "SAVINGS" | "CREDIT_CARD" | "INVESTMENT" | "OTHER";
+
 export interface AccountData {
   id: string;
   name: string;
@@ -104,7 +106,7 @@ export async function updateAccount(
       ...(input.name !== undefined && { name: input.name.trim() }),
       ...(input.isDefault !== undefined && { isDefault: input.isDefault }),
       ...(input.balance !== undefined && { balance: input.balance }),
-      ...(input.type !== undefined && { type: input.type as never }),
+      ...(input.type !== undefined && { type: input.type as AccountTypeKey | null }),
       ...(input.bank !== undefined && { bank: input.bank }),
       ...(input.lastFourDigits !== undefined && { lastFourDigits: input.lastFourDigits }),
       ...(input.description !== undefined && { description: input.description }),
@@ -135,7 +137,7 @@ export async function createAccount(input: {
       currency: input.currency ?? "USD",
       isDefault: input.isDefault ?? false,
       balance: input.balance ?? 0,
-      type: (input.type ?? null) as never,
+      type: (input.type as AccountTypeKey | null) ?? null,
       bank: input.bank ?? null,
       lastFourDigits: input.lastFourDigits ?? null,
       description: input.description ?? null,

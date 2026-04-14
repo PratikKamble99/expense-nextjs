@@ -1,6 +1,6 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "./prisma";
-import { TransactionType, TransferType } from "@prisma/client";
+import { TransactionType, TransferType, InvestmentType } from "@prisma/client";
 
 interface CreateTransactionInput {
   userId: string;
@@ -52,7 +52,7 @@ async function createExpense(input: CreateTransactionInput) {
       where: { id: fromAccountId },
     });
 
-    if (account.balance < new Decimal(amount)) {
+    if (account.balance.lessThan(new Decimal(amount))) {
       throw new Error("Insufficient funds");
     }
 
@@ -91,7 +91,7 @@ async function createBankTransfer(input: CreateTransactionInput) {
       where: { id: fromAccountId },
     });
 
-    if (fromAccount.balance < new Decimal(amount)) {
+    if (fromAccount.balance.lessThan(new Decimal(amount))) {
       throw new Error("Insufficient funds");
     }
 
@@ -134,7 +134,7 @@ async function createPersonTransfer(input: CreateTransactionInput) {
       where: { id: fromAccountId },
     });
 
-    if (account.balance < new Decimal(amount)) {
+    if (account.balance.lessThan(new Decimal(amount))) {
       throw new Error("Insufficient funds");
     }
 
@@ -182,7 +182,7 @@ async function createInvestment(input: CreateTransactionInput) {
       where: { id: fromAccountId },
     });
 
-    if (account.balance < new Decimal(amount)) {
+    if (account.balance.lessThan(new Decimal(amount))) {
       throw new Error("Insufficient funds");
     }
 
@@ -216,7 +216,7 @@ async function createInvestment(input: CreateTransactionInput) {
           userId,
           bankAccountId: fromAccountId,
           name: investmentName,
-          type: investmentType as any,
+          type: investmentType as InvestmentType,
           totalInvested: new Decimal(amount),
           currentValue: new Decimal(amount),
         },
