@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -16,7 +17,7 @@
     "@prisma/client": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "better-auth": "^1.6.1",
-    "next": "latest",
+    "next": "16.2.2",
     "nodemailer": "^6.9.14",
     "prisma": "^6.0.0",
     "react": "^19.0.0",
