@@ -5,6 +5,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { TransactionType, TransferType } from "@prisma/client";
+import type { AccountData } from "@/actions/accounts";
 
 // ── Serializable types ────────────────────────────────────────────────────────
 
@@ -25,14 +26,7 @@ export interface TransactionData {
 
 export interface DashboardSummary {
   totalInvested: number;
-  bankAccounts: {
-    id: string;
-    name: string;
-    balance: number;
-    currency: string;
-    isDefault: boolean;
-    createdAt: string;
-  }[];
+  bankAccounts: AccountData[];
   recentTransactions: TransactionData[];
   /** All transactions in the current month — used for client-side income/expense sums. */
   monthlyTransactions: TransactionData[];
@@ -122,9 +116,13 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     bankAccounts: bankAccounts.map((a) => ({
       id: a.id,
       name: a.name,
+      type: a.type,
       balance: a.balance.toNumber(),
       currency: a.currency,
       isDefault: a.isDefault,
+      bank: a.bank,
+      lastFourDigits: a.lastFourDigits,
+      description: a.description,
       createdAt: a.createdAt.toISOString(),
     })),
     recentTransactions: recentTxs.map(serializeTx),
@@ -134,7 +132,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 
 export async function getTransactionsWithAccounts(): Promise<{
   transactions: TransactionData[];
-  bankAccounts: { id: string; name: string; balance: number; currency: string; isDefault: boolean; createdAt: string }[];
+  bankAccounts: AccountData[];
 }> {
   const session = await getSession();
   const userId = session.user.id;
@@ -153,9 +151,13 @@ export async function getTransactionsWithAccounts(): Promise<{
     bankAccounts: accounts.map((a) => ({
       id: a.id,
       name: a.name,
+      type: a.type,
       balance: a.balance.toNumber(),
       currency: a.currency,
       isDefault: a.isDefault,
+      bank: a.bank,
+      lastFourDigits: a.lastFourDigits,
+      description: a.description,
       createdAt: a.createdAt.toISOString(),
     })),
   };
