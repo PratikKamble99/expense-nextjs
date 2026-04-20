@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { prisma } from './prisma'
 
 interface LogMcpCallOpts {
@@ -8,7 +10,6 @@ interface LogMcpCallOpts {
   result: 'success' | 'error'
   errorMsg?: string
   durationMs?: number
-  // extra fields surfaced only in Vercel logs (not stored in DB)
   userEmail?: string
   client?: string
 }
@@ -23,12 +24,36 @@ interface LogMcpAuthOpts {
   errorMsg?: string
 }
 
-function emit(payload: Record<string, unknown>): void {
-  console.log(JSON.stringify({ ...payload, ts: new Date().toISOString() }))
+// ── File logger (only when LOG_TO_FILE=true) ──────────────────────────────────
+
+const FILE_LOG_ENABLED = process.env.LOG_TO_FILE === 'true'
+
+function getLogFilePath(): string {
+  const date = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+  return path.join(process.cwd(), 'logs', `mcp-${date}.log`)
 }
 
+function writeToFile(line: string): void {
+  try {
+    const filePath = getLogFilePath()
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.appendFileSync(filePath, line + '\n', 'utf8')
+  } catch {
+    // never let file I/O crash a request
+  }
+}
+
+// ── Emit: stdout (Vercel) + optional file ────────────────────────────────────
+
+function emit(payload: Record<string, unknown>): void {
+  const line = JSON.stringify({ ...payload, ts: new Date().toISOString() })
+  console.log(line)
+  if (FILE_LOG_ENABLED) writeToFile(line)
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
 export function logMcpCall(opts: LogMcpCallOpts): void {
-  // Vercel log — one structured JSON line per call
   emit({
     event: 'mcp_call',
     tool: opts.tool,
@@ -42,7 +67,6 @@ export function logMcpCall(opts: LogMcpCallOpts): void {
     ...(opts.errorMsg && { errorMsg: opts.errorMsg }),
   })
 
-  // DB log — fire-and-forget, only DB fields
   prisma.mcpCallLog.create({
     data: {
       userId: opts.userId,

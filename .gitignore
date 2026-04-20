@@ -23,6 +23,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# MCP file logs
+/logs
+
 # Local env files
 .env
 .env.local
