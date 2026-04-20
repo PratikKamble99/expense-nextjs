@@ -58,6 +58,7 @@ const TABS = [
 ] as const;
 
 const PERIODS = [
+  { label: "1M", value: 1 },
   { label: "3M", value: 3 },
   { label: "6M", value: 6 },
   { label: "12M", value: 12 },
@@ -214,9 +215,103 @@ function SpendingTrendsTab({ data, fmt }: { data: ReportsData; fmt: FmtFn }) {
   );
 }
 
+// ─── SVG Bar Chart ────────────────────────────────────────────────────────────
+
+function fmtAxis(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${(n / 1_000).toFixed(0)}k`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(Math.round(n));
+}
+
+function IncomeExpenseChart({ monthly }: { monthly: { month: string; income: number; expense: number }[] }) {
+  const W = 640;
+  const H = 260;
+  const pad = { top: 16, right: 16, bottom: 44, left: 52 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const maxVal = Math.max(...monthly.flatMap((m) => [m.income, m.expense]), 1);
+  const n = monthly.length;
+  const groupW = plotW / n;
+  const barW = Math.max(8, Math.min(groupW * 0.3, 24));
+  const halfGap = barW * 0.15;
+
+  const yVal = (v: number) => plotH - (v / maxVal) * plotH;
+  const hVal = (v: number) => (v / maxVal) * plotH;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: "260px" }}>
+      <defs>
+        <linearGradient id="ig" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#10b981" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#059669" stopOpacity="0.75" />
+        </linearGradient>
+        <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ef4444" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#dc2626" stopOpacity="0.75" />
+        </linearGradient>
+      </defs>
+
+      <g transform={`translate(${pad.left},${pad.top})`}>
+        {/* Grid lines + Y labels */}
+        {yTicks.map((t) => {
+          const yp = plotH * (1 - t);
+          return (
+            <g key={t}>
+              <line
+                x1={0} x2={plotW} y1={yp} y2={yp}
+                stroke={t === 0 ? "#2a2d3d" : "#1e2130"}
+                strokeWidth={t === 0 ? 1.5 : 1}
+              />
+              {t > 0 && (
+                <text x={-6} y={yp + 4} textAnchor="end" fontSize={10} fill="#4b5563">
+                  {fmtAxis(maxVal * t)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Bars + X labels */}
+        {monthly.map((m, i) => {
+          const cx = (i + 0.5) * groupW;
+          const incX = cx - halfGap - barW;
+          const expX = cx + halfGap;
+          const parts = m.month.split(" ");
+          const showYear = n <= 4;
+
+          return (
+            <g key={m.month}>
+              {m.income > 0 && (
+                <rect x={incX} y={yVal(m.income)} width={barW} height={hVal(m.income)}
+                  fill="url(#ig)" rx={3} ry={3} />
+              )}
+              {m.expense > 0 && (
+                <rect x={expX} y={yVal(m.expense)} width={barW} height={hVal(m.expense)}
+                  fill="url(#eg)" rx={3} ry={3} />
+              )}
+              <text x={cx} y={plotH + 14} textAnchor="middle" fontSize={10} fill="#6b7280">
+                {parts[0]}
+              </text>
+              {showYear && (
+                <text x={cx} y={plotH + 26} textAnchor="middle" fontSize={9} fill="#374151">
+                  {parts[1]}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
+// ─── Cash Flow Tab ────────────────────────────────────────────────────────────
+
 function CashFlowTab({ data, fmt }: { data: ReportsData; fmt: FmtFn }) {
   const { cashFlow: cf } = data;
-  const maxVal = Math.max(...cf.monthly.flatMap((m) => [m.income, m.expense]), 1);
   const netPositive = cf.net >= 0;
 
   return (
@@ -243,22 +338,22 @@ function CashFlowTab({ data, fmt }: { data: ReportsData; fmt: FmtFn }) {
         />
       </div>
 
-      {/* Monthly income vs expense */}
+      {/* Income vs Expense bar chart */}
       <div style={{ background: "#13161e", border: "1px solid #1e2130" }} className="rounded-xl p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
             <div style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.2)" }} className="w-8 h-8 rounded-lg flex items-center justify-center">
               <BarChartIcon style={{ color: "#818cf8" }} />
             </div>
-            <h3 className="font-bold text-base" style={{ color: "#ffffff" }}>Monthly Cash Flow</h3>
+            <h3 className="font-bold text-base" style={{ color: "#ffffff" }}>Income vs Expense</h3>
           </div>
           <div className="flex items-center gap-4 text-xs font-semibold">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full" style={{ background: "#10b981" }} />
+              <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: "#10b981" }} />
               <span style={{ color: "#9ca3af" }}>Income</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full" style={{ background: "#ef4444" }} />
+              <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: "#ef4444" }} />
               <span style={{ color: "#9ca3af" }}>Expense</span>
             </span>
           </div>
@@ -267,23 +362,25 @@ function CashFlowTab({ data, fmt }: { data: ReportsData; fmt: FmtFn }) {
         {cf.monthly.every((m) => m.income === 0 && m.expense === 0) ? (
           <p className="text-sm text-center py-8" style={{ color: "#4b5563" }}>No transactions in this period</p>
         ) : (
-          <div className="space-y-6">
-            {cf.monthly.map(({ month, income, expense }) => (
-              <div key={month}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium" style={{ color: "#9ca3af" }}>{month}</span>
-                  <div className="flex gap-4 text-xs tabular-nums">
+          <>
+            <IncomeExpenseChart monthly={cf.monthly} />
+            {/* Monthly breakdown table */}
+            <div className="mt-4 divide-y" style={{ borderColor: "#1e2130" }}>
+              {cf.monthly.map(({ month, income, expense }) => (
+                <div key={month} className="flex items-center justify-between py-2.5 text-xs">
+                  <span style={{ color: "#6b7280" }}>{month}</span>
+                  <div className="flex gap-5 tabular-nums">
                     <span style={{ color: "#10b981" }}>+{fmt(income)}</span>
-                    <span style={{ color: "#ef4444" }}>-{fmt(expense)}</span>
+                    <span style={{ color: "#ef4444" }}>−{fmt(expense)}</span>
+                    <span style={{ color: income - expense >= 0 ? "#10b981" : "#ef4444", minWidth: "4rem", textAlign: "right" }}>
+                      {income - expense >= 0 ? "+" : ""}
+                      {fmt(income - expense)}
+                    </span>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <ProgressBar pct={(income / maxVal) * 100} color="green" />
-                  <ProgressBar pct={(expense / maxVal) * 100} color="red" />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </>

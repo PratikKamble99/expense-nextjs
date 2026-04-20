@@ -280,6 +280,36 @@ export async function updateTransaction(
   return serializeTx(updated);
 }
 
+export async function bulkCreateTransactions(inputs: TransactionInput[]): Promise<{
+  succeeded: number;
+  failed: Array<{ index: number; error: string }>;
+}> {
+  const session = await getSession();
+  const { createTransaction: create } = await import("@/lib/transactions");
+
+  let succeeded = 0;
+  const failed: Array<{ index: number; error: string }> = [];
+
+  for (let i = 0; i < inputs.length; i++) {
+    try {
+      const dateStr = inputs[i].date;
+      await create({
+        userId: session.user.id,
+        ...inputs[i],
+        date: dateStr ? new Date(dateStr) : undefined,
+      });
+      succeeded++;
+    } catch (err) {
+      failed.push({
+        index: i,
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  }
+
+  return { succeeded, failed };
+}
+
 export async function deleteTransaction(id: string): Promise<void> {
   const session = await getSession();
 

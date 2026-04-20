@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { MobileMenuButton } from "@/components/MobileMenuButton";
 import { AddTransactionModal } from "@/components/transactions/AddTransactionModal";
+import { InsightCard } from "@/components/InsightCard";
+import { ForecastCard } from "@/components/ForecastCard";
 import { getDashboardSummary } from "@/actions/transactions";
 import type { DashboardSummary } from "@/actions/transactions";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -14,6 +16,7 @@ export default function DashboardPage() {
     const [summary, setSummary] = useState<DashboardSummary | null>(null);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [forecastRevision, setForecastRevision] = useState(0);
 
     useEffect(() => {
         if (session) {
@@ -59,6 +62,19 @@ export default function DashboardPage() {
                                 <div className="shimmer h-8 w-28" />
                             </div>
                         ))}
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div className="card space-y-3">
+                            <div className="shimmer h-5 w-40" />
+                            {[...Array(3)].map((_, i) => (
+                                <div key={i} className="shimmer h-14 w-full rounded-xl" />
+                            ))}
+                        </div>
+                        <div className="card space-y-3">
+                            <div className="shimmer h-5 w-36" />
+                            <div className="shimmer h-9 w-32" />
+                            <div className="shimmer h-2 w-full rounded-full" />
+                        </div>
                     </div>
                 </main>
             </>
@@ -281,6 +297,12 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
+                {/* AI Insights + Forecast */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-10">
+                    <InsightCard />
+                    <ForecastCard revision={forecastRevision} />
+                </div>
+
                 {/* Add Transaction CTA */}
                 <button
                     onClick={() => setShowModal(true)}
@@ -366,6 +388,7 @@ export default function DashboardPage() {
                         onSuccess={() => {
                             setShowModal(false);
                             fetchSummary();
+                            setForecastRevision((r) => r + 1);
                         }}
                     />
                 )}

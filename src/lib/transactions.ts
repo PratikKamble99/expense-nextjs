@@ -1,6 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "./prisma";
 import { TransactionType, TransferType, InvestmentType } from "@prisma/client";
+import { deliverWebhookEvent } from "./webhooks";
 
 interface CreateTransactionInput {
   userId: string;
@@ -247,23 +248,43 @@ async function createInvestment(input: CreateTransactionInput) {
 }
 
 export async function createTransaction(input: CreateTransactionInput) {
+  let transaction: Awaited<ReturnType<typeof createIncome>>;
+
   switch (input.type) {
     case "INCOME":
-      return createIncome(input);
+      transaction = await createIncome(input);
+      break;
     case "EXPENSE":
-      return createExpense(input);
+      transaction = await createExpense(input);
+      break;
     case "TRANSFER":
       if (input.transferType === "BANK") {
-        return createBankTransfer(input);
+        transaction = await createBankTransfer(input);
       } else if (input.transferType === "PERSON") {
-        return createPersonTransfer(input);
+        transaction = await createPersonTransfer(input);
+      } else {
+        throw new Error("Invalid transferType for TRANSFER transaction");
       }
-      throw new Error("Invalid transferType for TRANSFER transaction");
+      break;
     case "INVESTMENT":
-      return createInvestment(input);
+      transaction = await createInvestment(input);
+      break;
     default:
       throw new Error("Invalid transaction type");
   }
+
+  // Fire-and-forget: deliver webhook event after the DB transaction commits
+  void deliverWebhookEvent(input.userId, "transaction.created", {
+    id: transaction.id,
+    type: transaction.type,
+    amount: transaction.amount.toNumber(),
+    category: transaction.category ?? null,
+    description: transaction.description ?? null,
+    fromAccountId: transaction.fromAccountId,
+    createdAt: transaction.createdAt.toISOString(),
+  });
+
+  return transaction;
 }
 
 export async function getUserSummary(userId: string) {

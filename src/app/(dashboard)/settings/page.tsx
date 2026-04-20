@@ -16,6 +16,15 @@ const CURRENCIES = ["USD", "EUR", "GBP", "INR", "JPY", "CAD", "AUD"];
 const THEMES = ["Dark", "Light", "System"];
 const DATE_FORMATS = ["MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD"];
 
+type ApiKey = {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+};
+
 const SECTION_ICONS = {
   profile: (
     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -58,6 +67,16 @@ export default function SettingsPage() {
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [savingPref, setSavingPref] = useState<string | null>(null);
 
+  // API Keys state
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [keysLoading, setKeysLoading] = useState(true);
+  const [showNewKeyForm, setShowNewKeyForm] = useState(false);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [newKeyRaw, setNewKeyRaw] = useState<string | null>(null);
+  const [keyCopied, setKeyCopied] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
+
   // Security state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [pwData, setPwData] = useState({ current: "", new: "", confirm: "" });
@@ -75,6 +94,51 @@ export default function SettingsPage() {
       .catch(console.error)
       .finally(() => setPrefsLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetch("/api/api-keys")
+      .then((r) => r.json())
+      .then((d) => setApiKeys(d.data ?? []))
+      .catch(console.error)
+      .finally(() => setKeysLoading(false));
+  }, []);
+
+  const handleCreateKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newKeyName.trim()) return;
+    setCreatingKey(true);
+    setKeyError(null);
+    try {
+      const res = await fetch("/api/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newKeyName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create key");
+      setNewKeyRaw(data.data.key);
+      setApiKeys((prev) => [{ ...data.data, lastUsedAt: null }, ...prev]);
+      setNewKeyName("");
+      setShowNewKeyForm(false);
+    } catch (err) {
+      setKeyError(err instanceof Error ? err.message : "Failed to create key");
+    } finally {
+      setCreatingKey(false);
+    }
+  };
+
+  const handleRevokeKey = async (id: string) => {
+    await fetch(`/api/api-keys?id=${id}`, { method: "DELETE" });
+    setApiKeys((prev) => prev.filter((k) => k.id !== id));
+    if (newKeyRaw) setNewKeyRaw(null);
+  };
+
+  const copyKey = () => {
+    if (!newKeyRaw) return;
+    navigator.clipboard.writeText(newKeyRaw);
+    setKeyCopied(true);
+    setTimeout(() => setKeyCopied(false), 2000);
+  };
 
   const handleSaveName = async () => {
     if (!editName.trim()) return;
@@ -538,6 +602,138 @@ export default function SettingsPage() {
               </div>
             ))
           ) : null}
+        </section>
+
+        {/* ── API Keys ── */}
+        <section className="card space-y-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-on-surface">API Keys</h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  Used to connect ChatGPT, Claude Desktop, and other AI tools
+                </p>
+              </div>
+            </div>
+            {!showNewKeyForm && !newKeyRaw && (
+              <button
+                onClick={() => { setShowNewKeyForm(true); setKeyError(null); }}
+                className="btn-primary text-xs px-3 py-1.5 shrink-0"
+              >
+                + New Key
+              </button>
+            )}
+          </div>
+
+          {/* New raw key — show once */}
+          {newKeyRaw && (
+            <div className="p-4 rounded-xl bg-tertiary/10 border border-tertiary/20 space-y-3">
+              <p className="text-xs font-semibold text-tertiary">
+                Copy your key now — it will not be shown again.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-surface-container text-on-surface text-xs px-3 py-2 rounded-lg font-mono break-all">
+                  {newKeyRaw}
+                </code>
+                <button
+                  onClick={copyKey}
+                  className="shrink-0 btn-secondary text-xs px-3 py-2"
+                >
+                  {keyCopied ? "✓ Copied" : "Copy"}
+                </button>
+              </div>
+              <button
+                onClick={() => setNewKeyRaw(null)}
+                className="text-xs text-on-surface-variant hover:text-on-surface transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* New key form */}
+          {showNewKeyForm && (
+            <form onSubmit={handleCreateKey} className="flex gap-2">
+              <input
+                type="text"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="Key name e.g. ChatGPT"
+                className="input text-sm flex-1"
+                autoFocus
+                maxLength={64}
+                required
+              />
+              <button
+                type="submit"
+                disabled={creatingKey || !newKeyName.trim()}
+                className="btn-primary text-xs px-4 py-2 shrink-0"
+              >
+                {creatingKey ? "Creating…" : "Create"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowNewKeyForm(false); setKeyError(null); }}
+                className="btn-secondary text-xs px-3 py-2 shrink-0"
+              >
+                Cancel
+              </button>
+            </form>
+          )}
+          {keyError && (
+            <p className="text-xs text-error">{keyError}</p>
+          )}
+
+          {/* Keys list */}
+          {keysLoading ? (
+            <div className="space-y-2">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="shimmer h-12 rounded-xl" />
+              ))}
+            </div>
+          ) : apiKeys.length === 0 ? (
+            <p className="text-sm text-on-surface-variant py-2">
+              No API keys yet. Create one to connect AI tools.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {apiKeys.map((key) => (
+                <div
+                  key={key.id}
+                  className="flex items-center justify-between px-4 py-3 rounded-xl bg-surface-container-high"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-on-surface">{key.name}</p>
+                      <code className="text-[11px] font-mono text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">
+                        {key.prefix}…
+                      </code>
+                    </div>
+                    <p className="text-xs text-on-surface-variant mt-0.5">
+                      Created {new Date(key.createdAt).toLocaleDateString()}
+                      {key.lastUsedAt && (
+                        <> · Last used {new Date(key.lastUsedAt).toLocaleDateString()}</>
+                      )}
+                      {key.expiresAt && (
+                        <> · Expires {new Date(key.expiresAt).toLocaleDateString()}</>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRevokeKey(key.id)}
+                    className="text-xs text-error hover:text-error/80 transition-colors px-3 py-1.5 rounded-lg hover:bg-error/10 shrink-0"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
       </main>

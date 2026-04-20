@@ -13,7 +13,11 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "@better-auth/prisma-adapter": "^1.6.1",
+    "@langchain/core": "^1.1.40",
+    "@langchain/langgraph": "^1.2.8",
+    "@langchain/openai": "^1.4.4",
     "@prisma/client": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "better-auth": "^1.6.1",
@@ -22,6 +26,7 @@
     "prisma": "^6.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {

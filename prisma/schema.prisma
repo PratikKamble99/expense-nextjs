@@ -64,6 +64,13 @@ model user {
   transactions       Transaction[]
   investments        Investment[]
   preference         UserPreference?
+  chatMessages       ChatMessage[]
+  spendingInsights   SpendingInsight[]
+  apiKeys            ApiKey[]
+  webhookEndpoints   WebhookEndpoint[]
+  statementImports   StatementImport[]
+  mcpSessions        McpSession[]
+  mcpCallLogs        McpCallLog[]
 
   @@map("user")
 }
@@ -159,6 +166,8 @@ model Transaction {
   recipientName  String?         // For TRANSFER_PERSON
   investmentId   String?
   investment     Investment?     @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  importId       String?         // StatementImport.id — set when created via statement import
+  rawNarration   String?         // Original unedited bank description
   createdAt      DateTime        @default(now())
 
   @@index([userId])
@@ -205,6 +214,83 @@ model UserPreference {
   @@map("user_preference")
 }
 
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   // "user" | "assistant"
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("chat_message")
+}
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  userId         String
+  user           user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  keyHash        String    @unique // SHA-256 hash of the raw key
+  prefix         String    // first 12 chars shown in UI e.g. "ll_a1b2c3d4e5"
+  lastUsedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime?
+  // Sliding-window rate limit (200 req/min)
+  reqCount       Int       @default(0)
+  reqWindowStart DateTime?
+  usageCount     Int       @default(0)
+
+  @@index([userId])
+  @@map("api_key")
+}
+
+model WebhookEndpoint {
+  id        String            @id @default(cuid())
+  userId    String
+  user      user              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url       String
+  secret    String            // HMAC-SHA256 signing secret (shown only on creation)
+  events    String[]          // ["transaction.created", "transaction.deleted"]
+  active    Boolean           @default(true)
+  createdAt DateTime          @default(now())
+
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+  @@map("webhook_endpoint")
+}
+
+model WebhookDelivery {
+  id          String          @id @default(cuid())
+  endpointId  String
+  endpoint    WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event       String          // "transaction.created"
+  payload     Json
+  status      String          // "pending" | "success" | "failed" | "retrying"
+  attempts    Int             @default(0)
+  nextRetryAt DateTime?
+  lastError   String?
+  createdAt   DateTime        @default(now())
+
+  @@index([endpointId])
+  @@index([status, nextRetryAt])
+  @@map("webhook_delivery")
+}
+
+model SpendingInsight {
+  id        String   @id @default(cuid())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  insights  Json     // Array of { emoji: string, title: string, description: string }
+  period    String   // "YYYY-MM" e.g. "2026-04"
+  createdAt DateTime @default(now())
+
+  @@unique([userId, period])
+  @@index([userId])
+  @@map("spending_insight")
+}
+
 model EmailLog {
   id        String      @id @default(cuid())
   to        String
@@ -216,4 +302,49 @@ model EmailLog {
 
   @@index([to])
   @@map("email_log")
+}
+
+model StatementImport {
+  id        String   @id @default(cuid())
+  userId    String
+  status    String   @default("pending") // "pending" | "reviewed" | "imported"
+  rawData   Json     // full DetectionResult stored here
+  createdAt DateTime @default(now())
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("statement_imports")
+}
+
+model McpSession {
+  id           String   @id
+  userId       String
+  apiKeyId     String
+  clientName   String
+  clientMeta   Json?
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mcp_sessions")
+}
+
+model McpCallLog {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionId    String?
+  tool         String
+  inputSummary String?
+  result       String
+  errorMsg     String?
+  durationMs   Int?
+  calledAt     DateTime @default(now())
+
+  user user @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([calledAt])
+  @@map("mcp_call_logs")
 }

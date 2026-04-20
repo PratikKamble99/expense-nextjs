@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { MobileMenuButton } from "@/components/MobileMenuButton";
 import { AddTransactionModal } from "@/components/transactions/AddTransactionModal";
+import { UploadTransactionsModal } from "@/components/transactions/UploadTransactionsModal";
 import {
     getTransactionsWithAccounts,
     deleteTransaction,
@@ -26,6 +27,7 @@ export default function TransactionsPage() {
     const [data, setData] = useState<TransactionsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [filterType, setFilterType] = useState<string>("ALL");
+    const [filterAccountId, setFilterAccountId] = useState<string>("ALL");
     const [fromDate, setFromDate] = useState<string>("");
     const [toDate, setToDate] = useState<string>("");
     const [currentPage, setCurrentPage] = useState(1);
@@ -35,6 +37,7 @@ export default function TransactionsPage() {
     const [isRepeat, setIsRepeat] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [showUploadModal, setShowUploadModal] = useState(false);
 
     useEffect(() => {
         if (session) {
@@ -45,7 +48,7 @@ export default function TransactionsPage() {
     // Reset to page 1 whenever filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [filterType, fromDate, toDate]);
+    }, [filterType, filterAccountId, fromDate, toDate]);
 
     const fetchTransactions = async () => {
         try {
@@ -196,6 +199,7 @@ export default function TransactionsPage() {
     const filteredTransactions = useMemo(() => {
         return (data?.transactions || []).filter((tx) => {
             if (filterType !== "ALL" && tx.type !== filterType) return false;
+            if (filterAccountId !== "ALL" && tx.fromAccountId !== filterAccountId) return false;
             if (fromDate) {
                 const txDate = new Date(tx.createdAt);
                 if (txDate < new Date(fromDate)) return false;
@@ -208,7 +212,7 @@ export default function TransactionsPage() {
             }
             return true;
         });
-    }, [data, filterType, fromDate, toDate]);
+    }, [data, filterType, filterAccountId, fromDate, toDate]);
 
     // Category totals for the filtered set, sorted by total descending
     const categoryTotals = useMemo(() => {
@@ -307,6 +311,12 @@ export default function TransactionsPage() {
                     </div>
                     <div className="flex items-center gap-4">
                         <button
+                            onClick={() => setShowUploadModal(true)}
+                            className="btn-secondary hidden sm:inline-flex"
+                        >
+                            Import CSV / Excel
+                        </button>
+                        <button
                             onClick={() => setShowModal(true)}
                             className="btn-primary hidden sm:inline-flex"
                         >
@@ -359,6 +369,55 @@ export default function TransactionsPage() {
                         ))}
                     </div>
                 </div>
+
+                {/* Account Filter */}
+                {(data?.bankAccounts.length ?? 0) > 0 && (
+                    <div className="mb-8">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-sm font-semibold text-on-surface uppercase tracking-wider">
+                                Filter by Account
+                            </h2>
+                            {filterAccountId !== "ALL" && (
+                                <button
+                                    onClick={() => setFilterAccountId("ALL")}
+                                    className="text-xs text-on-surface-variant hover:text-on-surface transition-colors"
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                            <button
+                                onClick={() => setFilterAccountId("ALL")}
+                                className={
+                                    filterAccountId === "ALL"
+                                        ? "type-pill-active"
+                                        : "type-pill-inactive"
+                                }
+                            >
+                                All Accounts
+                            </button>
+                            {data?.bankAccounts.map((account) => (
+                                <button
+                                    key={account.id}
+                                    onClick={() => setFilterAccountId(account.id)}
+                                    className={
+                                        filterAccountId === account.id
+                                            ? "type-pill-active"
+                                            : "type-pill-inactive"
+                                    }
+                                >
+                                    {account.name}
+                                    {account.lastFourDigits && (
+                                        <span className="opacity-60 ml-1">
+                                            ···{account.lastFourDigits}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Date Range Filter */}
                 <div className="mb-8">
@@ -685,6 +744,17 @@ export default function TransactionsPage() {
                     )}
                 </div>
             </main>
+
+            {showUploadModal && (
+                <UploadTransactionsModal
+                    accounts={data?.bankAccounts || []}
+                    onClose={() => setShowUploadModal(false)}
+                    onSuccess={() => {
+                        setShowUploadModal(false);
+                        fetchTransactions();
+                    }}
+                />
+            )}
 
             {showModal && (
                 <AddTransactionModal

@@ -168,10 +168,26 @@ export default function AccountsPage() {
                                     <p className="text-3xl font-bold text-on-surface tracking-tight">
                                         {convertToDisplay(Number(account.balance), account.currency)}
                                     </p>
-                                    <p className="text-xs text-on-surface-variant mt-4 uppercase tracking-wider">
-                                        Account ID: {account.id.slice(0, 8)}
-                                        ...
-                                    </p>
+                                    <div className="mt-4 flex items-center gap-2">
+                                        {account.bank && (
+                                            <span className="text-xs text-on-surface-variant font-medium truncate">
+                                                {account.bank}
+                                            </span>
+                                        )}
+                                        {account.bank && account.lastFourDigits && (
+                                            <span className="text-on-surface-variant/30 text-xs">·</span>
+                                        )}
+                                        {account.lastFourDigits && (
+                                            <span className="text-xs text-on-surface-variant/60 font-mono tracking-wider">
+                                                ···· {account.lastFourDigits}
+                                            </span>
+                                        )}
+                                        {!account.bank && !account.lastFourDigits && (
+                                            <span className="text-xs text-on-surface-variant/40 uppercase tracking-wider">
+                                                {account.type ?? "Account"}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
