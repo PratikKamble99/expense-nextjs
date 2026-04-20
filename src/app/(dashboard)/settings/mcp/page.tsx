@@ -26,6 +26,18 @@ type McpCallLog = {
   sessionId: string | null
 }
 
+type McpCallLogWithUser = McpCallLog & {
+  user?: { email: string; name: string | null }
+}
+
+type LogsResponse = {
+  logs: McpCallLogWithUser[]
+  total: number
+  page: number
+  pageSize: number
+  isAdmin: boolean
+}
+
 type ToolStat = {
   tool: string
   _count: { tool: number }
@@ -62,27 +74,53 @@ type Tab = 'chatgpt' | 'claude' | 'api'
 
 export default function McpSettingsPage() {
   const [sessions, setSessions] = useState<McpSession[]>([])
-  const [logs, setLogs] = useState<McpCallLog[]>([])
+  const [logs, setLogs] = useState<McpCallLogWithUser[]>([])
   const [stats, setStats] = useState<ToolStat[]>([])
   const [totalCalls, setTotalCalls] = useState(0)
   const [activeTab, setActiveTab] = useState<Tab>('chatgpt')
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [logsPage, setLogsPage] = useState(1)
+  const [logsTotal, setLogsTotal] = useState(0)
+  const [logsPageSize, setLogsPageSize] = useState(50)
+  const [logsLoading, setLogsLoading] = useState(false)
+  const [logsScope, setLogsScope] = useState<'mine' | 'all'>('mine')
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const manifestUrl = `${APP_URL}/api/mcp/manifest`
+  const totalPages = Math.ceil(logsTotal / logsPageSize)
 
   useEffect(() => {
     Promise.all([
       fetch('/api/mcp/sessions').then((r) => r.json()),
-      fetch('/api/mcp/logs').then((r) => r.json()),
-    ]).then(([sessData, logsData]) => {
+      fetch('/api/mcp/logs?page=1').then((r) => r.json()),
+    ]).then(([sessData, logsData]: [{ sessions?: McpSession[]; stats?: ToolStat[]; totalCalls?: number }, LogsResponse]) => {
       setSessions(sessData.sessions ?? [])
       setStats(sessData.stats ?? [])
       setTotalCalls(sessData.totalCalls ?? 0)
       setLogs(logsData.logs ?? [])
+      setLogsTotal(logsData.total ?? 0)
+      setLogsPageSize(logsData.pageSize ?? 50)
+      setIsAdmin(logsData.isAdmin ?? false)
       setLoading(false)
     })
   }, [])
+
+  const goToLogsPage = async (page: number, scope = logsScope) => {
+    setLogsLoading(true)
+    const params = new URLSearchParams({ page: String(page) })
+    if (scope === 'all') params.set('scope', 'all')
+    const data: LogsResponse = await fetch(`/api/mcp/logs?${params}`).then((r) => r.json())
+    setLogs(data.logs ?? [])
+    setLogsTotal(data.total ?? 0)
+    setLogsPage(page)
+    setLogsLoading(false)
+  }
+
+  const switchScope = (scope: 'mine' | 'all') => {
+    setLogsScope(scope)
+    goToLogsPage(1, scope)
+  }
 
   const handleRevoke = async (sessionId: string) => {
     await fetch('/api/mcp/sessions', {
@@ -332,54 +370,133 @@ export default function McpSettingsPage() {
           </div>
         </section>
 
-        {/* Recent activity */}
-        {logs.length > 0 && (
+        {/* Activity log */}
+        {(logs.length > 0 || logsTotal > 0) && (
           <section>
-            <h2 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider mb-3">
-              Recent Activity
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">
+                Activity Log
+              </h2>
+              <div className="flex items-center gap-3">
+                {isAdmin && (
+                  <div className="flex items-center gap-1 bg-surface-container-low border border-line-subtle/10 rounded-lg p-0.5">
+                    {(['mine', 'all'] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => switchScope(s)}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                          logsScope === s
+                            ? 'bg-primary/15 text-primary'
+                            : 'text-on-surface-variant hover:text-on-surface'
+                        }`}
+                      >
+                        {s === 'mine' ? 'My Logs' : 'All Users'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <span className="text-xs text-on-surface-variant">
+                  {logsTotal} total call{logsTotal !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
             <div className="bg-surface-container-low border border-line-subtle/10 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line-subtle/10 text-on-surface-variant text-xs">
                     <th className="text-left px-4 py-3 font-medium">Time</th>
                     <th className="text-left px-4 py-3 font-medium">Tool</th>
+                    {logsScope === 'all' && (
+                      <th className="text-left px-4 py-3 font-medium hidden md:table-cell">User</th>
+                    )}
                     <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Input</th>
                     <th className="text-left px-4 py-3 font-medium">Status</th>
                     <th className="text-right px-4 py-3 font-medium hidden md:table-cell">Duration</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map((log) => (
-                    <tr
-                      key={log.id}
-                      className="border-b border-line-subtle/10 last:border-0 hover:bg-surface-container-high/50 transition-colors"
-                    >
-                      <td className="px-4 py-3 text-on-surface-variant text-xs whitespace-nowrap">
-                        {formatRelative(log.calledAt)}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-on-surface">
-                        {log.tool}
-                      </td>
-                      <td className="px-4 py-3 text-on-surface-variant text-xs hidden md:table-cell">
-                        {log.inputSummary ?? '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`text-xs font-medium ${
-                            log.result === 'success' ? 'text-green-400' : 'text-red-400'
-                          }`}
-                        >
-                          {log.result === 'success' ? '✓' : '✗'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-on-surface-variant text-xs text-right hidden md:table-cell">
-                        {log.durationMs != null ? `${log.durationMs}ms` : '—'}
+                  {logsLoading ? (
+                    <tr>
+                      <td colSpan={logsScope === 'all' ? 6 : 5} className="px-4 py-6 text-center text-on-surface-variant text-xs">
+                        Loading…
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    logs.map((log) => (
+                      <tr
+                        key={log.id}
+                        className="border-b border-line-subtle/10 last:border-0 hover:bg-surface-container-high/50 transition-colors"
+                      >
+                        <td className="px-4 py-3 text-on-surface-variant text-xs whitespace-nowrap">
+                          {formatDate(log.calledAt)}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-on-surface">
+                          {log.tool}
+                        </td>
+                        {logsScope === 'all' && (
+                          <td className="px-4 py-3 text-on-surface-variant text-xs hidden md:table-cell max-w-[160px] truncate">
+                            {log.user?.email ?? '—'}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-on-surface-variant text-xs hidden md:table-cell max-w-[200px] truncate">
+                          {log.inputSummary ?? '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`text-xs font-medium ${
+                              log.result === 'success' ? 'text-green-400' : 'text-red-400'
+                            }`}
+                          >
+                            {log.result === 'success' ? '✓ success' : '✗ error'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-on-surface-variant text-xs text-right hidden md:table-cell">
+                          {log.durationMs != null ? `${log.durationMs}ms` : '—'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-line-subtle/10">
+                  <span className="text-xs text-on-surface-variant">
+                    Page {logsPage} of {totalPages}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => goToLogsPage(1)}
+                      disabled={logsPage === 1 || logsLoading}
+                      className="px-2 py-1 text-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      «
+                    </button>
+                    <button
+                      onClick={() => goToLogsPage(logsPage - 1)}
+                      disabled={logsPage === 1 || logsLoading}
+                      className="px-2 py-1 text-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      ‹ Prev
+                    </button>
+                    <button
+                      onClick={() => goToLogsPage(logsPage + 1)}
+                      disabled={logsPage === totalPages || logsLoading}
+                      className="px-2 py-1 text-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next ›
+                    </button>
+                    <button
+                      onClick={() => goToLogsPage(totalPages)}
+                      disabled={logsPage === totalPages || logsLoading}
+                      className="px-2 py-1 text-xs rounded-lg text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      »
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}

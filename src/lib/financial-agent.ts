@@ -51,6 +51,7 @@ function makeTransactionsTool(userId: string) {
   return tool(
     async ({
       months = 6,
+      allTime = false,
       startDate,
       endDate,
       type,
@@ -59,6 +60,7 @@ function makeTransactionsTool(userId: string) {
       maxAmount,
     }: {
       months?: number;
+      allTime?: boolean;
       startDate?: string;
       endDate?: string;
       type?: "INCOME" | "EXPENSE" | "TRANSFER" | "INVESTMENT";
@@ -66,23 +68,24 @@ function makeTransactionsTool(userId: string) {
       minAmount?: number;
       maxAmount?: number;
     }) => {
-      // Explicit date range takes priority over rolling months window
-      let dateFilter: { gte?: Date; lte?: Date };
-      if (startDate ?? endDate) {
-        dateFilter = {
-          ...(startDate && { gte: new Date(startDate) }),
-          ...(endDate && { lte: new Date(`${endDate}T23:59:59.999Z`) }),
-        };
-      } else {
-        const since = new Date();
-        since.setMonth(since.getMonth() - months);
-        dateFilter = { gte: since };
+      let dateFilter: { gte?: Date; lte?: Date } | undefined;
+      if (!allTime) {
+        if (startDate ?? endDate) {
+          dateFilter = {
+            ...(startDate && { gte: new Date(startDate) }),
+            ...(endDate && { lte: new Date(`${endDate}T23:59:59.999Z`) }),
+          };
+        } else {
+          const since = new Date();
+          since.setMonth(since.getMonth() - months);
+          dateFilter = { gte: since };
+        }
       }
 
       const transactions = await prisma.transaction.findMany({
         where: {
           userId,
-          createdAt: dateFilter,
+          ...(dateFilter && { createdAt: dateFilter }),
           ...(type && { type }),
           ...(category && {
             category: { contains: category, mode: "insensitive" },
@@ -119,14 +122,21 @@ function makeTransactionsTool(userId: string) {
       name: "get_transactions",
       description:
         "Fetch transactions with optional filters. Use for questions about spending, income, UPI transfers, or specific date queries. " +
+        "Set allTime: true for 'all transactions', 'full history', or 'previous records' queries — this removes the date limit. " +
         "Prefer startDate/endDate for specific date queries (e.g. 'on March 15', 'last Tuesday', 'in January'). " +
         "type can be INCOME, EXPENSE, TRANSFER, or INVESTMENT. minAmount/maxAmount filter by amount.",
       schema: z.object({
+        allTime: z
+          .boolean()
+          .optional()
+          .describe(
+            "Set to true to fetch all transactions with no date limit. Use for 'all transactions', 'full history', or 'previous records' queries."
+          ),
         months: z
           .number()
           .optional()
           .describe(
-            "Rolling window in months (default 6). Ignored when startDate or endDate is provided."
+            "Rolling window in months (default 6). Ignored when allTime is true or when startDate/endDate is provided."
           ),
         startDate: z
           .string()
