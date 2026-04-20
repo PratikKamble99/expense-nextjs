@@ -13,13 +13,164 @@ export async function GET() {
     },
     servers: [{ url: APP_URL }],
     paths: {
-      '/api/mcp': {
+      '/api/mcp/get_accounts': {
         post: {
-          operationId: 'callTool',
-          summary: 'Execute an expense tracker tool',
+          operationId: 'getAccounts',
+          summary: 'List all bank accounts',
           description:
-            'Call any available tool. Always call get_accounts before add_transaction. ' +
-            'For image receipts: call parse_receipt first, confirm with user, then add_transaction.',
+            'Get all bank accounts and current balances. Always call this first before add_transaction to get valid account IDs.',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: false,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            '200': {
+              description: 'List of accounts with balances',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      result: {
+                        type: 'object',
+                        properties: {
+                          accounts: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                id: { type: 'string' },
+                                name: { type: 'string' },
+                                type: { type: 'string' },
+                                balance: { type: 'number' },
+                                balanceFormatted: { type: 'string' },
+                                currency: { type: 'string' },
+                                isDefault: { type: 'boolean' },
+                              },
+                            },
+                          },
+                          totalBalance: { type: 'number' },
+                          totalBalanceFormatted: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+          },
+        },
+      },
+
+      '/api/mcp/get_summary': {
+        post: {
+          operationId: 'getSummary',
+          summary: 'Get monthly financial summary',
+          description:
+            'Get financial summary: total balance, this month income, expenses, savings rate, and total invested.',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: false,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            '200': {
+              description: 'Financial summary for the current month',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      result: {
+                        type: 'object',
+                        properties: {
+                          totalBalance: { type: 'number' },
+                          totalInvested: { type: 'number' },
+                          monthlyIncome: { type: 'number' },
+                          monthlyExpense: { type: 'number' },
+                          monthlySavings: { type: 'number' },
+                          savingsRate: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+          },
+        },
+      },
+
+      '/api/mcp/get_transactions': {
+        post: {
+          operationId: 'getTransactions',
+          summary: 'Fetch recent transactions with optional filters',
+          description:
+            'Get recent transactions. Use to answer "how much did I spend on food?" or "show my last transactions".',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    limit: { type: 'number', description: 'Max results 1-100, default 20' },
+                    type: {
+                      type: 'string',
+                      enum: ['INCOME', 'EXPENSE', 'TRANSFER_BANK', 'TRANSFER_PERSON', 'INVESTMENT'],
+                    },
+                    category: {
+                      type: 'string',
+                      description: 'Category filter e.g. food, transport',
+                    },
+                    fromDate: { type: 'string', description: 'Start date YYYY-MM-DD' },
+                    toDate: { type: 'string', description: 'End date YYYY-MM-DD' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'List of matching transactions',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      result: {
+                        type: 'object',
+                        properties: {
+                          transactions: { type: 'array', items: { type: 'object' } },
+                          count: { type: 'number' },
+                          totalAmount: { type: 'number' },
+                          totalAmountFormatted: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+          },
+        },
+      },
+
+      '/api/mcp/add_transaction': {
+        post: {
+          operationId: 'addTransaction',
+          summary: 'Add a financial transaction',
+          description:
+            'Record a transaction. INCOME = money received. EXPENSE = money spent. ' +
+            'TRANSFER_BANK = moving between your own accounts (not an expense). ' +
+            'TRANSFER_PERSON = sending to another person (is an expense). ' +
+            'INVESTMENT = stocks/MF/FD. ' +
+            'Always call getAccounts first. Always confirm details with user before calling.',
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -27,46 +178,40 @@ export async function GET() {
               'application/json': {
                 schema: {
                   type: 'object',
-                  required: ['tool'],
+                  required: ['type', 'amount', 'fromAccountId'],
                   properties: {
-                    tool: {
+                    type: {
                       type: 'string',
-                      enum: [
-                        'get_accounts',
-                        'get_summary',
-                        'get_transactions',
-                        'add_transaction',
-                        'parse_receipt',
-                      ],
-                      description: 'Name of the tool to execute',
+                      enum: ['INCOME', 'EXPENSE', 'TRANSFER_BANK', 'TRANSFER_PERSON', 'INVESTMENT'],
                     },
-                    arguments: {
-                      type: 'object',
-                      description: 'Tool-specific arguments',
+                    amount: { type: 'number', description: 'Amount as plain number e.g. 450' },
+                    fromAccountId: {
+                      type: 'string',
+                      description: 'Source account ID from getAccounts',
                     },
-                  },
-                },
-                examples: {
-                  addExpense: {
-                    summary: 'Add an expense',
-                    value: {
-                      tool: 'add_transaction',
-                      arguments: {
-                        type: 'EXPENSE',
-                        amount: 450,
-                        fromAccountId: 'account-id-from-get-accounts',
-                        description: 'Lunch at Subway',
-                        category: 'food',
-                      },
+                    description: { type: 'string' },
+                    category: {
+                      type: 'string',
+                      description:
+                        'food | transport | utilities | rent | entertainment | health | shopping | education | salary | freelance | investment | transfer | other',
                     },
-                  },
-                  parseReceipt: {
-                    summary: 'Parse a receipt image',
-                    value: {
-                      tool: 'parse_receipt',
-                      arguments: {
-                        image_url: 'https://example.com/receipt.jpg',
-                      },
+                    date: { type: 'string', description: 'YYYY-MM-DD, defaults to today' },
+                    notes: { type: 'string' },
+                    toAccountId: {
+                      type: 'string',
+                      description: 'Required for TRANSFER_BANK — destination account ID',
+                    },
+                    recipientName: {
+                      type: 'string',
+                      description: 'Required for TRANSFER_PERSON',
+                    },
+                    investmentName: {
+                      type: 'string',
+                      description: 'Required for INVESTMENT',
+                    },
+                    investmentType: {
+                      type: 'string',
+                      enum: ['STOCKS', 'MUTUAL_FUND', 'BONDS', 'REAL_ESTATE', 'CRYPTO', 'OTHER'],
                     },
                   },
                 },
@@ -75,35 +220,86 @@ export async function GET() {
           },
           responses: {
             '200': {
-              description: 'Tool executed successfully',
+              description: 'Transaction added successfully',
               content: {
                 'application/json': {
                   schema: {
                     type: 'object',
                     properties: {
-                      result: { type: 'object', description: 'Tool response data' },
-                    },
-                  },
-                },
-              },
-            },
-            '401': {
-              description: 'Invalid or missing API key',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      error: { type: 'string' },
-                      code: {
-                        type: 'string',
-                        enum: ['MISSING_KEY', 'INVALID_KEY'],
+                      result: {
+                        type: 'object',
+                        properties: {
+                          success: { type: 'boolean' },
+                          transactionId: { type: 'string' },
+                          message: { type: 'string' },
+                        },
                       },
                     },
                   },
                 },
               },
             },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+          },
+        },
+      },
+
+      '/api/mcp/parse_receipt': {
+        post: {
+          operationId: 'parseReceipt',
+          summary: 'Extract transaction data from a receipt image',
+          description:
+            'Parse a receipt photo, UPI payment screenshot, PhonePe/GPay/Paytm confirmation, or bank SMS. ' +
+            'Call this when the user shares an image, then confirm with user before calling addTransaction.',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    image_url: {
+                      type: 'string',
+                      description: 'Public HTTPS URL of the image',
+                    },
+                    image_base64: {
+                      type: 'string',
+                      description: 'Base64 encoded image (without data: prefix)',
+                    },
+                    image_media_type: {
+                      type: 'string',
+                      enum: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+                      description: 'Required when using image_base64',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Extracted receipt data',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      result: {
+                        type: 'object',
+                        properties: {
+                          success: { type: 'boolean' },
+                          confidence: { type: 'number' },
+                          extracted: { type: 'object' },
+                          confirmationMessage: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            '401': { $ref: '#/components/responses/Unauthorized' },
           },
         },
       },
@@ -115,6 +311,22 @@ export async function GET() {
           scheme: 'bearer',
           bearerFormat: 'API Key',
           description: 'Generate your API key at Settings → API Keys',
+        },
+      },
+      responses: {
+        Unauthorized: {
+          description: 'Invalid or missing API key',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  error: { type: 'string' },
+                  code: { type: 'string', enum: ['MISSING_KEY', 'INVALID_KEY'] },
+                },
+              },
+            },
+          },
         },
       },
     },
