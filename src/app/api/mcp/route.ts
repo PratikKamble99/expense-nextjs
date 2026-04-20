@@ -1,22 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveMcpAuth, detectClientName, McpAuthError } from '@/lib/mcp-auth'
 import { executeTool, TOOLS } from '@/lib/mcp-tools'
-import { logMcpCall, summarizeInput } from '@/lib/mcp-logger'
+import { logMcpCall, logMcpAuthEvent, summarizeInput } from '@/lib/mcp-logger'
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
   let ctx: Awaited<ReturnType<typeof resolveMcpAuth>> | null = null
   let toolName = 'unknown'
+  const clientName = detectClientName(req.headers)
+  const ip = req.headers.get('x-forwarded-for') ?? undefined
 
   try {
-    const clientName = detectClientName(req.headers)
     const clientMeta: Record<string, string> = {
       userAgent: req.headers.get('user-agent') ?? '',
-      ip: req.headers.get('x-forwarded-for') ?? '',
+      ip: ip ?? '',
       conversationId: req.headers.get('openai-conversation-id') ?? '',
     }
 
     ctx = await resolveMcpAuth(req.headers.get('authorization'), clientName, clientMeta)
+
+    logMcpAuthEvent({
+      event: 'mcp_auth_success',
+      client: clientName,
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      ip,
+    })
 
     let body: unknown
     try {
@@ -42,11 +51,25 @@ export async function POST(req: NextRequest) {
       inputSummary: summarizeInput(toolName, args),
       result: 'success',
       durationMs: Date.now() - startTime,
+      userEmail: ctx.userEmail,
+      client: clientName,
     })
 
     return NextResponse.json({ result })
   } catch (error: unknown) {
     const err = error as Error
+
+    if (error instanceof McpAuthError) {
+      logMcpAuthEvent({
+        event: 'mcp_auth_error',
+        client: clientName,
+        code: error.code,
+        errorMsg: err.message,
+        ip,
+      })
+      const status = error.code === 'USER_NOT_FOUND' ? 403 : 401
+      return NextResponse.json({ error: err.message, code: error.code }, { status })
+    }
 
     if (ctx) {
       logMcpCall({
@@ -56,15 +79,12 @@ export async function POST(req: NextRequest) {
         result: 'error',
         errorMsg: err.message,
         durationMs: Date.now() - startTime,
+        userEmail: ctx.userEmail,
+        client: clientName,
       })
     }
 
-    if (error instanceof McpAuthError) {
-      const status = error.code === 'USER_NOT_FOUND' ? 403 : 401
-      return NextResponse.json({ error: err.message, code: error.code }, { status })
-    }
-
-    console.error('[MCP Error]', err)
+    console.error(JSON.stringify({ event: 'mcp_unhandled_error', tool: toolName, error: err.message, ts: new Date().toISOString() }))
     return NextResponse.json(
       { error: err.message ?? 'Internal server error', code: 'INTERNAL_ERROR' },
       { status: 500 }

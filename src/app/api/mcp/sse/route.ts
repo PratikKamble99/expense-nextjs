@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveMcpAuth, detectClientName, McpAuthError } from '@/lib/mcp-auth'
 import { executeTool, TOOLS } from '@/lib/mcp-tools'
-import { logMcpCall, summarizeInput } from '@/lib/mcp-logger'
+import { logMcpCall, logMcpAuthEvent, summarizeInput } from '@/lib/mcp-logger'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ''
 
@@ -43,13 +43,23 @@ export async function GET(req: NextRequest) {
 
 // POST /api/mcp/sse — JSON-RPC 2.0 message handler
 export async function POST(req: NextRequest) {
+  const clientName = detectClientName(req.headers)
+  const ip = req.headers.get('x-forwarded-for') ?? undefined
+
   try {
-    const clientName = detectClientName(req.headers)
     const authHeader =
       req.headers.get('authorization') ??
       `Bearer ${req.nextUrl.searchParams.get('api_key') ?? ''}`
 
     const ctx = await resolveMcpAuth(authHeader, clientName)
+
+    logMcpAuthEvent({
+      event: 'mcp_auth_success',
+      client: clientName,
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      ip,
+    })
 
     let body: unknown
     try {
@@ -97,6 +107,8 @@ export async function POST(req: NextRequest) {
           inputSummary: summarizeInput(toolName, args),
           result: 'success',
           durationMs: Date.now() - startTime,
+          userEmail: ctx.userEmail,
+          client: clientName,
         })
         return NextResponse.json({
           jsonrpc: '2.0',
@@ -114,6 +126,8 @@ export async function POST(req: NextRequest) {
           result: 'error',
           errorMsg: e.message,
           durationMs: Date.now() - startTime,
+          userEmail: ctx.userEmail,
+          client: clientName,
         })
         return NextResponse.json({
           jsonrpc: '2.0',
@@ -131,6 +145,13 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const e = err as Error
     if (err instanceof McpAuthError) {
+      logMcpAuthEvent({
+        event: 'mcp_auth_error',
+        client: clientName,
+        code: err.code,
+        errorMsg: e.message,
+        ip,
+      })
       return NextResponse.json(
         { jsonrpc: '2.0', id: null, error: { code: 401, message: e.message } },
         { status: 401 }
