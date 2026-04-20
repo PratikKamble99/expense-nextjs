@@ -4,7 +4,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://your-app.vercel.app'
 
 export async function GET() {
   const spec = {
-    openapi: '3.1.0',
+    openapi: '3.0.0',
     info: {
       title: 'Expense Tracker',
       description:
@@ -20,10 +20,6 @@ export async function GET() {
           description:
             'Get all bank accounts and current balances. Always call this first before add_transaction to get valid account IDs.',
           security: [{ bearerAuth: [] }],
-          requestBody: {
-            required: false,
-            content: { 'application/json': { schema: { type: 'object' } } },
-          },
           responses: {
             '200': {
               description: 'List of accounts with balances',
@@ -59,7 +55,7 @@ export async function GET() {
                 },
               },
             },
-            '401': { $ref: '#/components/responses/Unauthorized' },
+            '401': { description: 'Invalid or missing API key' },
           },
         },
       },
@@ -71,10 +67,6 @@ export async function GET() {
           description:
             'Get financial summary: total balance, this month income, expenses, savings rate, and total invested.',
           security: [{ bearerAuth: [] }],
-          requestBody: {
-            required: false,
-            content: { 'application/json': { schema: { type: 'object' } } },
-          },
           responses: {
             '200': {
               description: 'Financial summary for the current month',
@@ -99,7 +91,7 @@ export async function GET() {
                 },
               },
             },
-            '401': { $ref: '#/components/responses/Unauthorized' },
+            '401': { description: 'Invalid or missing API key' },
           },
         },
       },
@@ -156,7 +148,7 @@ export async function GET() {
                 },
               },
             },
-            '401': { $ref: '#/components/responses/Unauthorized' },
+            '401': { description: 'Invalid or missing API key' },
           },
         },
       },
@@ -239,7 +231,7 @@ export async function GET() {
                 },
               },
             },
-            '401': { $ref: '#/components/responses/Unauthorized' },
+            '401': { description: 'Invalid or missing API key' },
           },
         },
       },
@@ -299,7 +291,7 @@ export async function GET() {
                 },
               },
             },
-            '401': { $ref: '#/components/responses/Unauthorized' },
+            '401': { description: 'Invalid or missing API key' },
           },
         },
       },
@@ -311,22 +303,6 @@ export async function GET() {
           scheme: 'bearer',
           bearerFormat: 'API Key',
           description: 'Generate your API key at Settings → API Keys',
-        },
-      },
-      responses: {
-        Unauthorized: {
-          description: 'Invalid or missing API key',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  error: { type: 'string' },
-                  code: { type: 'string', enum: ['MISSING_KEY', 'INVALID_KEY'] },
-                },
-              },
-            },
-          },
         },
       },
     },
