@@ -1,6 +1,5 @@
-import fs from 'fs'
-import path from 'path'
 import { prisma } from './prisma'
+import { logger } from './logger'
 
 interface LogMcpCallOpts {
   userId: string
@@ -24,37 +23,10 @@ interface LogMcpAuthOpts {
   errorMsg?: string
 }
 
-// ── File logger (only when LOG_TO_FILE=true) ──────────────────────────────────
-
-const FILE_LOG_ENABLED = process.env.LOG_TO_FILE === 'true'
-
-function getLogFilePath(): string {
-  const date = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
-  return path.join(process.cwd(), 'logs', `mcp-${date}.log`)
-}
-
-function writeToFile(line: string): void {
-  try {
-    const filePath = getLogFilePath()
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.appendFileSync(filePath, line + '\n', 'utf8')
-  } catch {
-    // never let file I/O crash a request
-  }
-}
-
-// ── Emit: stdout (Vercel) + optional file ────────────────────────────────────
-
-function emit(payload: Record<string, unknown>): void {
-  const line = JSON.stringify({ ...payload, ts: new Date().toISOString() })
-  console.log(line)
-  if (FILE_LOG_ENABLED) writeToFile(line)
-}
-
-// ── Public API ────────────────────────────────────────────────────────────────
-
 export function logMcpCall(opts: LogMcpCallOpts): void {
-  emit({
+  const level = opts.result === 'error' ? 'error' : 'info'
+
+  logger[level]({
     event: 'mcp_call',
     tool: opts.tool,
     result: opts.result,
@@ -78,12 +50,14 @@ export function logMcpCall(opts: LogMcpCallOpts): void {
       durationMs: opts.durationMs,
     },
   }).catch((err: unknown) => {
-    console.error(JSON.stringify({ event: 'mcp_db_log_error', error: String(err), ts: new Date().toISOString() }))
+    logger.error({ event: 'mcp_db_log_error', error: String(err) })
   })
 }
 
 export function logMcpAuthEvent(opts: LogMcpAuthOpts): void {
-  emit({
+  const level = opts.event === 'mcp_auth_error' ? 'warn' : 'info'
+
+  logger[level]({
     event: opts.event,
     client: opts.client,
     ...(opts.code && { code: opts.code }),
