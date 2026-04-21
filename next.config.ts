@@ -10,7 +10,7 @@ export default withSentryConfig(config, {
   project: process.env.SENTRY_PROJECT,
   silent: true,
   widenClientFileUpload: true,
-  hideSourceMaps: true,
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
   disableLogger: true,
   automaticVercelMonitors: true,
 })
